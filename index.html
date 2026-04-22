@@ -185,7 +185,12 @@ const LOCALES = {
     brandSub:'Warehouse system', ratePrefix:'Rate:',
     dashboard:'Dashboard', sell:'Sell (POS)', products:'Products',
     suppliers:'Suppliers', purchases:'Purchases', sales:'Sales History',
-    expenses:'Expenses', installers:'Installers', installs:'Install Jobs', settings:'Settings',
+    expenses:'Expenses', installers:'Installers', installs:'Install Jobs', settings:'Settings', users:'Users',
+    addUser:'Add user', role:'Role', bossRole:'Boss', sellerRole:'Seller',
+    changePassword:'Change password', newPassword:'New password',
+    confirmDeleteUser:'Delete this user?', cannotDeleteLastBoss:'Cannot delete the last boss',
+    usernameExists:'Username already taken', userCreated:'User created', passwordUpdated:'Password updated',
+    backendOnly:'Available only when running with the backend server',
     name:'Name', edit:'Edit', del:'Del', save:'Save', cancel:'Cancel',
     add:'Add', total:'Total', date:'Date', note:'Note', qty:'Qty',
     price:'Price', amount:'Amount', supplier:'Supplier', customer:'Customer',
@@ -265,7 +270,12 @@ const LOCALES = {
     brandSub:'Складская система', ratePrefix:'Курс:',
     dashboard:'Главная', sell:'Продажа (Касса)', products:'Товары',
     suppliers:'Поставщики', purchases:'Закупки', sales:'История продаж',
-    expenses:'Расходы', installers:'Установщики', installs:'Установки', settings:'Настройки',
+    expenses:'Расходы', installers:'Установщики', installs:'Установки', settings:'Настройки', users:'Пользователи',
+    addUser:'Добавить', role:'Роль', bossRole:'Босс', sellerRole:'Продавец',
+    changePassword:'Сменить пароль', newPassword:'Новый пароль',
+    confirmDeleteUser:'Удалить пользователя?', cannotDeleteLastBoss:'Нельзя удалить последнего босса',
+    usernameExists:'Такой логин уже есть', userCreated:'Пользователь создан', passwordUpdated:'Пароль изменён',
+    backendOnly:'Доступно только при работе с сервером',
     name:'Название', edit:'Изм.', del:'Удал.', save:'Сохранить', cancel:'Отмена',
     add:'Добавить', total:'Итого', date:'Дата', note:'Заметка', qty:'Кол-во',
     price:'Цена', amount:'Сумма', supplier:'Поставщик', customer:'Клиент',
@@ -345,7 +355,12 @@ const LOCALES = {
     brandSub:'Ombor tizimi', ratePrefix:'Kurs:',
     dashboard:'Bosh sahifa', sell:'Sotish (Kassa)', products:'Mahsulotlar',
     suppliers:'Yetkazib beruvchilar', purchases:'Xaridlar', sales:'Sotuvlar tarixi',
-    expenses:'Xarajatlar', installers:'Ustalar', installs:"O'rnatishlar", settings:'Sozlamalar',
+    expenses:'Xarajatlar', installers:'Ustalar', installs:"O'rnatishlar", settings:'Sozlamalar', users:'Foydalanuvchilar',
+    addUser:"Qo'shish", role:'Rol', bossRole:'Boshliq', sellerRole:'Sotuvchi',
+    changePassword:"Parolni o'zgartirish", newPassword:'Yangi parol',
+    confirmDeleteUser:"Foydalanuvchi o'chirilsinmi?", cannotDeleteLastBoss:"Oxirgi boshliqni o'chirib bo'lmaydi",
+    usernameExists:'Bunday login mavjud', userCreated:"Foydalanuvchi qo'shildi", passwordUpdated:"Parol o'zgartirildi",
+    backendOnly:'Faqat server bilan ishlaganda mavjud',
     name:'Nomi', edit:"O'z.", del:"O'chir.", save:'Saqlash', cancel:'Bekor',
     add:"Qo'shish", total:'Jami', date:'Sana', note:'Izoh', qty:'Soni',
     price:'Narx', amount:'Summa', supplier:'Yetkazuvchi', customer:'Mijoz',
@@ -547,6 +562,7 @@ const NAV_ALL = [
   {id:'installs', key:'installs', fn:()=>viewInstalls(), roles:['boss','seller']},
   {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
+  {id:'users', key:'users', fn:()=>viewUsers(), roles:['boss']},
   {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss']},
 ];
 let role = sessionStorage.getItem('role') || null;
@@ -2185,6 +2201,109 @@ function wipeData(){
   if(!confirm(t('confirmWipe'))) return;
   if(!confirm(t('reallyWipe'))) return;
   localStorage.removeItem(KEY); state = load(); updateRateLabel(); viewSettings();
+}
+
+/* =================== USERS (boss only) =================== */
+async function viewUsers(){
+  if(!HAS_BACKEND || !authToken){
+    V().innerHTML = `<div class="card"><p style="color:var(--muted)">${t('backendOnly')}</p></div>`;
+    return;
+  }
+  V().innerHTML = `<div class="card"><p style="color:var(--muted)">…</p></div>`;
+  let users = [];
+  try { users = await apiFetch('GET','/api/users'); }
+  catch(e){ V().innerHTML = `<div class="card"><p style="color:var(--neg)">${escapeHtml(e.message)}</p></div>`; return; }
+
+  const rows = users.map(u => `
+    <tr>
+      <td>${escapeHtml(u.username)}</td>
+      <td><span class="pill ${u.role==='boss'?'pos':''}">${u.role==='boss'?t('bossRole'):t('sellerRole')}</span></td>
+      <td style="text-align:right;white-space:nowrap">
+        <button onclick="openChangePassword(${u.id}, '${escapeAttr(u.username)}')">${t('changePassword')}</button>
+        <button class="danger" onclick="deleteUser(${u.id}, '${escapeAttr(u.username)}')">${t('del')}</button>
+      </td>
+    </tr>`).join('');
+
+  V().innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3 style="margin:0">${t('users')}</h3>
+        <button class="primary" onclick="openAddUser()">${t('addUser')}</button>
+      </div>
+      <table>
+        <thead><tr><th>${t('username')}</th><th>${t('role')}</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="3" class="muted">${t('noData')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+function openAddUser(){
+  modal(`
+    <h3 style="margin-top:0">${t('addUser')}</h3>
+    <label>${t('username')}</label>
+    <input id="nu-name" autocomplete="off">
+    <label style="margin-top:10px">${t('password')}</label>
+    <input id="nu-pass" type="text" autocomplete="off">
+    <label style="margin-top:10px">${t('role')}</label>
+    <select id="nu-role">
+      <option value="seller">${t('sellerRole')}</option>
+      <option value="boss">${t('bossRole')}</option>
+    </select>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="submitAddUser()">${t('save')}</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('nu-name')?.focus(), 50);
+}
+
+async function submitAddUser(){
+  const username = document.getElementById('nu-name').value.trim();
+  const password = document.getElementById('nu-pass').value;
+  const role = document.getElementById('nu-role').value;
+  if(!username || !password){ alert(t('required')); return; }
+  try {
+    await apiFetch('POST','/api/users',{username, password, role});
+    closeModal();
+    alert(t('userCreated'));
+    viewUsers();
+  } catch(e){
+    if(/exists/i.test(e.message)) alert(t('usernameExists'));
+    else alert(e.message);
+  }
+}
+
+function openChangePassword(id, username){
+  modal(`
+    <h3 style="margin-top:0">${t('changePassword')}</h3>
+    <p style="color:var(--muted);margin-top:0">${escapeHtml(username)}</p>
+    <label>${t('newPassword')}</label>
+    <input id="cp-pass" type="text" autocomplete="off">
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="submitChangePassword(${id})">${t('save')}</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('cp-pass')?.focus(), 50);
+}
+
+async function submitChangePassword(id){
+  const password = document.getElementById('cp-pass').value;
+  if(!password){ alert(t('required')); return; }
+  try {
+    await apiFetch('PUT',`/api/users/${id}/password`,{password});
+    closeModal();
+    alert(t('passwordUpdated'));
+  } catch(e){ alert(e.message); }
+}
+
+async function deleteUser(id, username){
+  if(!confirm(t('confirmDeleteUser')+'\n\n'+username)) return;
+  try {
+    await apiFetch('DELETE',`/api/users/${id}`);
+    viewUsers();
+  } catch(e){
+    if(/last boss/i.test(e.message)) alert(t('cannotDeleteLastBoss'));
+    else alert(e.message);
+  }
 }
 
 /* =================== HELPERS =================== */
