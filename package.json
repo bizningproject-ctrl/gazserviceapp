@@ -1,0 +1,20 @@
+{
+  "name": "gazmetprod-sklad",
+  "version": "1.0.0",
+  "description": "Warehouse management system for car gas equipment",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "docker:build": "docker build -t gazmetprod-sklad:latest .",
+    "docker:run": "docker run --rm -p 3000:3000 -v sklad-data:/app/data gazmetprod-sklad:latest"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.9.0",
+    "express": "^4.21.2"
+  }
+}

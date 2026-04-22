@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gazmetprod Sklad — Warehouse</title>
+<style>
+  :root{
+    --bg:#0f1720; --panel:#17212b; --panel2:#1e2a38; --line:#2a3a4d;
+    --text:#e6edf3; --muted:#8aa0b4; --accent:#2f81f7; --accent2:#1f6feb;
+    --good:#2ea043; --warn:#d29922; --bad:#f85149; --chip:#223244;
+    --pos:#7ce38b; --neg:#ffb4b4; --hi:#f7d280; --info:#9ec5f5;
+    --btn-hover:#253444; --sidebar-bg:#0b121b; --row-hover:#1b2735;
+    --danger-bg:#3a1e22; --danger-border:#5a2a2e; --danger-bg-hover:#4b2528;
+  }
+  html[data-theme="light"]{
+    --bg:#f3f5f9; --panel:#ffffff; --panel2:#eef2f7; --line:#dfe4ec;
+    --text:#1a2230; --muted:#5a6877; --accent:#2563eb; --accent2:#1e40af;
+    --good:#16a34a; --warn:#b45309; --bad:#dc2626; --chip:#e6eaf0;
+    --pos:#1f7a3a; --neg:#c0322c; --hi:#a06808; --info:#1a4a7a;
+    --btn-hover:#dde3eb; --sidebar-bg:#e9eef4; --row-hover:#f0f3f8;
+    --danger-bg:#fde6e6; --danger-border:#f4b5b5; --danger-bg-hover:#f9d2d2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+  button{font-family:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:8px 14px;border-radius:6px;font-size:14px}
+  button:hover{background:var(--btn-hover)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:var(--accent2)}
+  button.danger{background:var(--danger-bg);border-color:var(--danger-border);color:var(--neg)}
+  button.danger:hover{background:var(--danger-bg-hover)}
+  button.ghost{background:transparent}
+  input,select,textarea{font-family:inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:14px;width:100%}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  label{display:block;margin-bottom:4px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;background:var(--panel)}
+  tr:hover td{background:var(--row-hover)}
+  .hidden{display:none!important}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1;min-width:180px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;flex:1;min-width:180px}
+  .kpi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  .chip{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 8px;font-size:12px;color:var(--muted);margin-right:4px}
+  .chip.good{background:#0e3c22;color:#a8eac0}
+  .chip.bad{background:#3c1014;color:var(--neg)}
+  .chip.warn{background:#3c2b0e;color:var(--hi)}
+  .chip.exp-purchase{background:#1a3a5a;color:#9ec5f5}
+  .chip.exp-delivery{background:#5a3a0e;color:#ffd280}
+  .chip.exp-installation_pay{background:#3a1e3c;color:#e0a8e8}
+  .chip.exp-rent{background:#3c1014;color:var(--neg)}
+  .chip.exp-utilities{background:#0e3c3a;color:#a8eae5}
+  .chip.exp-salary{background:#0e3c22;color:#a8eac0}
+  .chip.exp-other{background:#2a3a4d;color:#cdd9e5}
+  html[data-theme="light"] .chip{background:#e6eaf0;color:#5a6877}
+  html[data-theme="light"] .chip.good{background:#d4f0dd;color:#15803d}
+  html[data-theme="light"] .chip.bad{background:#fadcdb;color:#b91c1c}
+  html[data-theme="light"] .chip.warn{background:#faecc6;color:#92590a}
+  html[data-theme="light"] .chip.exp-purchase{background:#d6e7fa;color:#1d4ed8}
+  html[data-theme="light"] .chip.exp-delivery{background:#fae6c6;color:#92590a}
+  html[data-theme="light"] .chip.exp-installation_pay{background:#f0d6f5;color:#86198f}
+  html[data-theme="light"] .chip.exp-rent{background:#fadcdb;color:#b91c1c}
+  html[data-theme="light"] .chip.exp-utilities{background:#d6f0ed;color:#0f766e}
+  html[data-theme="light"] .chip.exp-salary{background:#d4f0dd;color:#15803d}
+  html[data-theme="light"] .chip.exp-other{background:#e1e7ee;color:#4a5b6d}
+
+  .app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+  .sidebar{background:var(--sidebar-bg);border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:4px}
+  .brand{font-weight:800;letter-spacing:.5px;margin-bottom:12px;font-size:16px}
+  .brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+  .nav-btn{text-align:left;background:transparent;border:none;color:var(--text);padding:10px 12px;border-radius:6px;width:100%}
+  .nav-btn:hover{background:var(--panel)}
+  .nav-btn.active{background:var(--panel);color:var(--accent);font-weight:600;border-left:3px solid var(--accent);padding-left:9px}
+  .lang-pick{display:flex;gap:4px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+  .lang-pick button{flex:1;padding:6px 4px;font-size:12px}
+  .lang-pick button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .main{padding:20px 28px;overflow-x:auto}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
+  .topbar h1{margin:0;font-size:22px}
+  .user-tag{color:var(--muted);font-size:13px}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;width:560px;max-width:100%;max-height:90vh;overflow:auto}
+  .modal h3{margin:0 0 14px 0}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+  .pos{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:flex-start}
+  .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+  .prod-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;transition:transform .05s}
+  .prod-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .prod-card.out{opacity:.4;cursor:not-allowed}
+  .prod-card .name{font-weight:600;margin-bottom:6px;min-height:34px}
+  .prod-card .price{color:var(--accent);font-weight:700}
+  .prod-card .stock{color:var(--muted);font-size:12px;margin-top:4px}
+  .cart{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;position:sticky;top:20px}
+  .cart h3{margin:0 0 10px 0}
+  .cart-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);gap:8px}
+  .cart-item:last-child{border-bottom:none}
+  .qty-ctrl{display:flex;align-items:center;gap:4px}
+  .qty-ctrl button{padding:2px 8px;min-width:26px}
+  .cart-total{display:flex;justify-content:space-between;padding-top:10px;margin-top:8px;border-top:2px solid var(--line);font-weight:700;font-size:16px}
+  .pay-split{background:var(--panel2);border-radius:8px;padding:10px;margin-top:10px}
+  .purchase-line{display:grid;grid-template-columns:2fr 80px 100px 30px;gap:6px;margin-bottom:6px;align-items:center}
+  .install-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;max-height:260px;overflow-y:auto;padding-right:4px}
+  .install-picker .ip-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px;cursor:pointer;font-size:12px;transition:transform .05s}
+  .install-picker .ip-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .install-picker .ip-badge{position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:700}
+  .install-line{display:grid;grid-template-columns:1fr 110px 90px 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px}
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px;width:420px;max-width:100%}
+  .login-box h2{margin:0 0 4px 0}
+  .login-box p{color:var(--muted);margin:0 0 20px 0;font-size:13px}
+  .role-grid{display:grid;gap:10px;margin-top:14px}
+  .role-btn{padding:18px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);text-align:center;cursor:pointer;font-weight:600}
+  .role-btn:hover{border-color:var(--accent);background:var(--btn-hover)}
+  .role-btn .ico{font-size:22px;display:block;margin-bottom:6px}
+
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr}
+    .sidebar{flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--line)}
+    .nav-btn{white-space:nowrap}
+    .pos{grid-template-columns:1fr}
+    .cart{position:static}
+    .lang-pick{margin-top:0;border:none;padding:0}
+  }
+</style>
+</head>
+<body>
+
+<div id="login" class="login">
+  <div class="login-box">
+    <h2 id="login-title">Gazmetprod Sklad</h2>
+    <p id="login-sub">Sign in</p>
+    <label id="login-user-label">Username</label>
+    <input id="login-user" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    <label id="login-pass-label" style="margin-top:10px">Password</label>
+    <div style="position:relative">
+      <input id="login-pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')tryLogin()" style="padding-right:42px">
+      <button type="button" onclick="togglePass()" id="pass-eye"
+        style="position:absolute;right:4px;top:50%;transform:translateY(-50%);background:transparent;border:none;padding:6px 10px;font-size:18px;color:var(--muted);cursor:pointer"
+        title="Show / hide password">👁</button>
+    </div>
+    <div id="login-error" style="color:var(--neg);font-size:12px;min-height:16px;margin-top:6px"></div>
+    <button class="primary" style="width:100%;margin-top:6px;padding:12px" onclick="tryLogin()" id="login-btn">Sign in</button>
+    <div class="lang-pick" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+      <button data-lang="en" onclick="setLang('en')">EN</button>
+      <button data-lang="ru" onclick="setLang('ru')">RU</button>
+      <button data-lang="uz" onclick="setLang('uz')">UZ</button>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand">GAZMETPROD<small id="brand-sub">Warehouse system</small></div>
+    <div id="nav"></div>
+    <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--line)">
+      <button class="nav-btn" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:6px"></button>
+      <button class="nav-btn" onclick="logout()" id="logout-btn">&larr; Switch role</button>
+    </div>
+    <div class="lang-pick" style="margin-top:8px">
+      <button data-lang="en" onclick="setLang('en')">EN</button>
+      <button data-lang="ru" onclick="setLang('ru')">RU</button>
+      <button data-lang="uz" onclick="setLang('uz')">UZ</button>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1 id="page-title">Dashboard</h1>
+      <div class="user-tag"><span id="role-tag" style="margin-right:10px"></span><span id="rate-prefix"></span> <span id="rate-label"></span></div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+
+<script>
+/* =================== I18N =================== */
+const LOCALES = {
+  en:{
+    brandSub:'Warehouse system', ratePrefix:'Rate:',
+    dashboard:'Dashboard', sell:'Sell (POS)', products:'Products',
+    suppliers:'Suppliers', purchases:'Purchases', sales:'Sales History',
+    expenses:'Expenses', installers:'Installers', installs:'Install Jobs', settings:'Settings',
+    name:'Name', edit:'Edit', del:'Del', save:'Save', cancel:'Cancel',
+    add:'Add', total:'Total', date:'Date', note:'Note', qty:'Qty',
+    price:'Price', amount:'Amount', supplier:'Supplier', customer:'Customer',
+    search:'Search product by name or SKU...', noData:'No data yet', required:'Name required',
+    confirmDelete:'Delete?',
+    totalRevenue:'Total revenue', totalExpenses:'Total expenses',
+    netProfit:'Net profit', inventoryValue:'Inventory value',
+    thisWeekRE:'This week — rev / exp', thisMonthRE:'This month — rev / exp',
+    receivedUsd:'Received USD total', receivedSom:'Received SOM total',
+    stockUnits:'Stock units', productTypes:'Product types',
+    suppliersKpi:'Suppliers', installersKpi:'Installers',
+    recentSales:'Recent Sales', lowStock:'Low stock',
+    currentSale:'Current Sale',
+    splitPayment:'SPLIT PAYMENT (partial in each currency OK)',
+    paidInUsd:'Paid in USD', paidInSom:'Paid in SOM',
+    exactPayment:'Exact payment', change:'Change', missing:'Missing',
+    payAllUsd:'Pay all USD', payAllSom:'Pay all SOM',
+    completeSale:'Complete Sale', clear:'Clear',
+    notEnoughStock:'Not enough stock', cartEmpty:'Cart is empty',
+    saleComplete:'Sale complete! Total:',
+    newProduct:'+ New Product', editProduct:'Edit Product',
+    sku:'SKU / Code', lowWarn:'Low-stock warning', none:'— none —',
+    stockCol:'Stock', restockQ:'Add how many units of',
+    restockCost:'Cost of this restock in USD (leave blank to skip expense)',
+    cashier:'Cashier', items:'Items', paidUsd:'Paid USD', paidSom:'Paid SOM', salesCount:'Sales count',
+    purchaseHistory:'Purchase History', newPurchase:'+ New Purchase',
+    purchaseCount:'Purchase records', logPurchase:'Log Purchase',
+    selectProduct:'— Select product —', cost:'Cost / unit', addItem:'+ Add Item',
+    addSupplierFirst:'Add a supplier first', addProductFirst:'Add at least one product first',
+    purchaseNote:'Purchase note (optional)', selectSupplier:'Select supplier',
+    purchaseSaved:'Purchase saved. Stock updated and expense recorded.',
+    phone:'Phone', totalPurchases:'Total purchases', productsCol:'Products',
+    newSupplier:'+ New Supplier', editSupplier:'Edit Supplier',
+    expType:'Type', newExpense:'+ New Expense', expenseEntries:'Expense entries',
+    expSupOpt:'Supplier (optional, for purchase)',
+    ratePerInstall:'Rate / install', jobs:'Jobs', paidWeek:'Paid this week',
+    paidMonth:'This month', paidAll:'All-time', allInstallers:'Installers',
+    newInstaller:'+ New Installer', editInstaller:'Edit Installer',
+    defaultPay:'Default pay per install (USD)',
+    carPlate:'Car plate', charged:'Charged', paidToInstaller:'Paid to installer',
+    installerCol:'Installer', logJob:'+ Log Install Job', totalJobs:'Total install jobs',
+    chargedUsd:'Charged USD', chargedSom:'Charged SOM',
+    payToInstaller:'Paid to installer (USD)',
+    exchangeRate:'Exchange Rate', exchangeDesc:'Set how many SOM equal 1 USD. Used across the whole app.',
+    saveRate:'Save rate', dataBackup:'Data Backup',
+    backupDesc:'Export all data as JSON, or import from a previous export.',
+    exportJson:'Export JSON', importJson:'Import JSON',
+    dangerZone:'Danger zone', dangerDesc:'Wipe all local data. Cannot be undone.',
+    wipeAll:'Wipe all data',
+    invalidAmount:'Enter an amount', confirmReplace:'Replace current data with imported file?',
+    invalidFile:'Invalid file', confirmWipe:'Wipe ALL data?', reallyWipe:'Really? This cannot be undone.',
+    underpayment:'Underpayment of', recordAnyway:'. Record anyway?',
+    expense_purchase:'purchase', expense_delivery:'delivery', expense_installation_pay:'installation pay',
+    expense_rent:'rent', expense_utilities:'utilities', expense_salary:'salary', expense_other:'other',
+    totalUsd:'Total USD', restockBtn:'+Stock', allTypes:'All types',
+    pickRole:'Pick role', boss:'Boss', seller:'Seller', switchRole:'Switch role',
+    signIn:'Sign in', username:'Username', password:'Password', badCreds:'Wrong username or password',
+    costPrice:'Cost price', costCol:'Cost', sellerHidden:'(boss only)',
+    cogs:'COGS', cogsHint:'Cost of goods sold', opExpenses:'Operating expenses',
+    themeDark:'☾ Dark mode', themeLight:'☀ Light mode',
+    stockChanges:'Stock changes by seller', stockChangeHint:'Manual stock edits — boss view',
+    bySeller:'by seller', byBoss:'by boss', noStockChanges:'No manual stock changes',
+    archive:'Archive', period:'Period', from:'From', to:'To',
+    last7:'Last 7 days', last30:'Last 30 days', thisMonthRange:'This month', allTime:'All time',
+    downloadHtml:'Download report (HTML)', printReport:'Print',
+    summary:'Summary', soldItems:'Sold items', installersSection:'Install jobs in period',
+    productsSold:'Products sold', totalQty:'Total qty', generated:'Generated',
+    defectives:'Defective items', markDefective:'Mark defective', defectiveBtn:'Defective',
+    reason:'Reason', defectiveCount:'defective', noDefectives:'No defective items reported',
+    reportedBy:'Reported by', recentDefectives:'Recent defective reports',
+    qtyExceedsStock:'Quantity exceeds available stock',
+    help:'Help', forSeller:'For Seller', forBoss:'For Boss', commonFlow:'Daily flow',
+    addInstaller:'+ Add installer', installersCol:'Installers',
+    recentPayments:'Recent payments',
+  },
+  ru:{
+    brandSub:'Складская система', ratePrefix:'Курс:',
+    dashboard:'Главная', sell:'Продажа (Касса)', products:'Товары',
+    suppliers:'Поставщики', purchases:'Закупки', sales:'История продаж',
+    expenses:'Расходы', installers:'Установщики', installs:'Установки', settings:'Настройки',
+    name:'Название', edit:'Изм.', del:'Удал.', save:'Сохранить', cancel:'Отмена',
+    add:'Добавить', total:'Итого', date:'Дата', note:'Заметка', qty:'Кол-во',
+    price:'Цена', amount:'Сумма', supplier:'Поставщик', customer:'Клиент',
+    search:'Поиск товара по названию или коду...', noData:'Нет данных', required:'Имя обязательно',
+    confirmDelete:'Удалить?',
+    totalRevenue:'Общая выручка', totalExpenses:'Общие расходы',
+    netProfit:'Чистая прибыль', inventoryValue:'Стоимость склада',
+    thisWeekRE:'Эта неделя — выручка / расходы', thisMonthRE:'Этот месяц — выручка / расходы',
+    receivedUsd:'Получено в USD', receivedSom:'Получено в сумах',
+    stockUnits:'Единиц на складе', productTypes:'Видов товара',
+    suppliersKpi:'Поставщиков', installersKpi:'Установщиков',
+    recentSales:'Недавние продажи', lowStock:'Мало на складе',
+    currentSale:'Текущая продажа',
+    splitPayment:'СМЕШАННАЯ ОПЛАТА (можно частично в обеих валютах)',
+    paidInUsd:'Оплата в USD', paidInSom:'Оплата в сумах',
+    exactPayment:'Точная сумма', change:'Сдача', missing:'Не хватает',
+    payAllUsd:'Всё в USD', payAllSom:'Всё в сумах',
+    completeSale:'Завершить продажу', clear:'Очистить',
+    notEnoughStock:'Недостаточно на складе', cartEmpty:'Корзина пуста',
+    saleComplete:'Продажа завершена! Сумма:',
+    newProduct:'+ Новый товар', editProduct:'Редактировать товар',
+    sku:'Артикул / Код', lowWarn:'Порог низкого остатка', none:'— нет —',
+    stockCol:'Остаток', restockQ:'Сколько единиц добавить:',
+    restockCost:'Стоимость пополнения в USD (пусто = без расхода)',
+    cashier:'Кассир', items:'Товары', paidUsd:'USD', paidSom:'Сумы', salesCount:'Продаж',
+    purchaseHistory:'История закупок', newPurchase:'+ Новая закупка',
+    purchaseCount:'Записей о закупках', logPurchase:'Записать закупку',
+    selectProduct:'— Выберите товар —', cost:'Цена / шт.', addItem:'+ Добавить позицию',
+    addSupplierFirst:'Сначала добавьте поставщика', addProductFirst:'Сначала добавьте хотя бы один товар',
+    purchaseNote:'Заметка о закупке (необязательно)', selectSupplier:'Выберите поставщика',
+    purchaseSaved:'Закупка сохранена. Остаток обновлён, расход записан.',
+    phone:'Телефон', totalPurchases:'Сумма закупок', productsCol:'Товаров',
+    newSupplier:'+ Новый поставщик', editSupplier:'Редактировать поставщика',
+    expType:'Тип', newExpense:'+ Новый расход', expenseEntries:'Записей',
+    expSupOpt:'Поставщик (необязательно, для закупок)',
+    ratePerInstall:'Оплата за установку', jobs:'Установок', paidWeek:'За неделю',
+    paidMonth:'За месяц', paidAll:'За всё время', allInstallers:'Установщиков',
+    newInstaller:'+ Новый установщик', editInstaller:'Редактировать установщика',
+    defaultPay:'Стандартная оплата за установку (USD)',
+    carPlate:'Гос. номер', charged:'Получено', paidToInstaller:'Выплата установщику',
+    installerCol:'Установщик', logJob:'+ Записать установку', totalJobs:'Всего установок',
+    chargedUsd:'Получено USD', chargedSom:'Получено сумов',
+    payToInstaller:'Выплата установщику (USD)',
+    exchangeRate:'Курс валют', exchangeDesc:'Сколько сумов равно 1 USD. Используется во всём приложении.',
+    saveRate:'Сохранить курс', dataBackup:'Резервная копия',
+    backupDesc:'Экспорт всех данных в JSON или импорт из файла.',
+    exportJson:'Экспорт JSON', importJson:'Импорт JSON',
+    dangerZone:'Опасная зона', dangerDesc:'Удалить все локальные данные. Необратимо.',
+    wipeAll:'Удалить все данные',
+    invalidAmount:'Введите сумму', confirmReplace:'Заменить текущие данные импортированными?',
+    invalidFile:'Неверный файл', confirmWipe:'Удалить ВСЕ данные?', reallyWipe:'Точно? Это нельзя отменить.',
+    underpayment:'Недоплата', recordAnyway:'. Записать всё равно?',
+    expense_purchase:'закупка', expense_delivery:'доставка', expense_installation_pay:'оплата установки',
+    expense_rent:'аренда', expense_utilities:'коммунальные', expense_salary:'зарплата', expense_other:'прочее',
+    totalUsd:'Итого USD', restockBtn:'+Остаток', allTypes:'Все типы',
+    pickRole:'Выберите роль', boss:'Босс', seller:'Продавец', switchRole:'Сменить роль',
+    signIn:'Войти', username:'Логин', password:'Пароль', badCreds:'Неверный логин или пароль',
+    costPrice:'Закупочная цена', costCol:'Закупка', sellerHidden:'(только для босса)',
+    cogs:'Себ.', cogsHint:'Себестоимость продаж', opExpenses:'Операционные расходы',
+    themeDark:'☾ Тёмная', themeLight:'☀ Светлая',
+    stockChanges:'Изменения остатков продавцом', stockChangeHint:'Ручные правки — для босса',
+    bySeller:'продавец', byBoss:'босс', noStockChanges:'Изменений нет',
+    archive:'Архив', period:'Период', from:'С', to:'По',
+    last7:'7 дней', last30:'30 дней', thisMonthRange:'Этот месяц', allTime:'Всё время',
+    downloadHtml:'Скачать отчёт (HTML)', printReport:'Печать',
+    summary:'Сводка', soldItems:'Проданные товары', installersSection:'Установки за период',
+    productsSold:'Продано', totalQty:'Всего шт.', generated:'Создан',
+    defectives:'Брак', markDefective:'Отметить брак', defectiveBtn:'Брак',
+    reason:'Причина', defectiveCount:'брак', noDefectives:'Брак не отмечен',
+    reportedBy:'Отметил', recentDefectives:'Недавний брак',
+    qtyExceedsStock:'Количество больше остатка',
+    help:'Помощь', forSeller:'Для продавца', forBoss:'Для босса', commonFlow:'Ежедневный процесс',
+    addInstaller:'+ Добавить установщика', installersCol:'Установщики',
+    recentPayments:'Последние выплаты',
+  },
+  uz:{
+    brandSub:'Ombor tizimi', ratePrefix:'Kurs:',
+    dashboard:'Bosh sahifa', sell:'Sotish (Kassa)', products:'Mahsulotlar',
+    suppliers:'Yetkazib beruvchilar', purchases:'Xaridlar', sales:'Sotuvlar tarixi',
+    expenses:'Xarajatlar', installers:'Ustalar', installs:"O'rnatishlar", settings:'Sozlamalar',
+    name:'Nomi', edit:"O'z.", del:"O'chir.", save:'Saqlash', cancel:'Bekor',
+    add:"Qo'shish", total:'Jami', date:'Sana', note:'Izoh', qty:'Soni',
+    price:'Narx', amount:'Summa', supplier:'Yetkazuvchi', customer:'Mijoz',
+    search:'Mahsulot nomi yoki kod bilan qidiring...', noData:"Ma'lumot yo'q", required:'Nom kerak',
+    confirmDelete:"O'chirilsinmi?",
+    totalRevenue:'Umumiy daromad', totalExpenses:'Umumiy xarajat',
+    netProfit:'Sof foyda', inventoryValue:'Ombor qiymati',
+    thisWeekRE:'Bu hafta — daromad / xarajat', thisMonthRE:'Bu oy — daromad / xarajat',
+    receivedUsd:'USDda olindi', receivedSom:'Somda olindi',
+    stockUnits:'Omborda donalar', productTypes:'Mahsulot turlari',
+    suppliersKpi:'Yetkazuvchilar', installersKpi:'Ustalar',
+    recentSales:"So'nggi sotuvlar", lowStock:'Kam qoldi',
+    currentSale:'Joriy sotuv',
+    splitPayment:'BIRLASHGAN TO\u2019LOV (har ikki valyutada qisman to\u2019lash mumkin)',
+    paidInUsd:"USDda to'landi", paidInSom:"Somda to'landi",
+    exactPayment:"Aniq to'lov", change:'Qaytim', missing:'Yetishmaydi',
+    payAllUsd:"Hammasi USDda", payAllSom:'Hammasi Somda',
+    completeSale:'Sotuvni yakunlash', clear:'Tozalash',
+    notEnoughStock:'Omborda yetarli emas', cartEmpty:"Savat bo'sh",
+    saleComplete:'Sotuv yakunlandi! Jami:',
+    newProduct:'+ Yangi mahsulot', editProduct:'Mahsulotni tahrirlash',
+    sku:'Artikul / Kod', lowWarn:'Past qoldiq ogohlantirishi', none:'— yoq —',
+    stockCol:'Qoldiq', restockQ:'Necha dona qoshamiz:',
+    restockCost:"USDda xarid narxi (bo'sh = xarajatsiz)",
+    cashier:'Kassir', items:'Mahsulotlar', paidUsd:'USD', paidSom:'Som', salesCount:'Sotuvlar soni',
+    purchaseHistory:'Xaridlar tarixi', newPurchase:'+ Yangi xarid',
+    purchaseCount:'Xarid yozuvlari', logPurchase:'Xaridni qayd etish',
+    selectProduct:'— Mahsulotni tanlang —', cost:'Narx / dona', addItem:"+ Qator qo'shish",
+    addSupplierFirst:"Avval yetkazuvchi qo'shing", addProductFirst:"Avval kamida bitta mahsulot qo'shing",
+    purchaseNote:'Xarid izohi (ixtiyoriy)', selectSupplier:'Yetkazuvchini tanlang',
+    purchaseSaved:'Xarid saqlandi. Qoldiq yangilandi, xarajat qayd etildi.',
+    phone:'Telefon', totalPurchases:'Jami xaridlar', productsCol:'Mahsulotlar',
+    newSupplier:'+ Yangi yetkazuvchi', editSupplier:'Yetkazuvchini tahrirlash',
+    expType:'Turi', newExpense:'+ Yangi xarajat', expenseEntries:'Yozuvlar',
+    expSupOpt:'Yetkazuvchi (ixtiyoriy, xarid uchun)',
+    ratePerInstall:"O'rnatish uchun haq", jobs:'Ish soni', paidWeek:'Bu hafta',
+    paidMonth:'Bu oy', paidAll:'Jami davr', allInstallers:'Ustalar',
+    newInstaller:'+ Yangi usta', editInstaller:'Ustani tahrirlash',
+    defaultPay:"O'rnatish uchun standart haq (USD)",
+    carPlate:'Avto raqami', charged:'Olindi', paidToInstaller:"Ustaga to'landi",
+    installerCol:'Usta', logJob:"+ O'rnatishni qayd etish", totalJobs:"Jami o'rnatishlar",
+    chargedUsd:'USDda olindi', chargedSom:'Somda olindi',
+    payToInstaller:"Ustaga to'lov (USD)",
+    exchangeRate:'Valyuta kursi', exchangeDesc:'1 USD necha somga teng. Hamma joyda ishlatiladi.',
+    saveRate:'Kursni saqlash', dataBackup:'Zaxira nusxa',
+    backupDesc:"Hamma ma'lumotni JSON sifatida saqlash yoki yuklash.",
+    exportJson:'JSON eksport', importJson:'JSON import',
+    dangerZone:'Xavfli hudud', dangerDesc:"Hamma mahalliy ma'lumotni o'chirish. Qaytarib bo'lmaydi.",
+    wipeAll:"Hamma ma'lumotni o'chirish",
+    invalidAmount:'Summa kiriting', confirmReplace:"Joriy ma'lumotlarni almashtirish?",
+    invalidFile:"Noto'g'ri fayl", confirmWipe:"HAMMA ma'lumotni o'chirish?", reallyWipe:"Aniqmi? Buni qaytarib bo'lmaydi.",
+    underpayment:'Kam tolandi:', recordAnyway:'. Baribir saqlansinmi?',
+    expense_purchase:'xarid', expense_delivery:'yetkazib berish', expense_installation_pay:"o'rnatish haqi",
+    expense_rent:'ijara', expense_utilities:'kommunal', expense_salary:'oylik', expense_other:'boshqa',
+    totalUsd:'Jami USD', restockBtn:'+Qoldiq', allTypes:'Hamma turlar',
+    pickRole:'Rolni tanlang', boss:'Boshliq', seller:'Sotuvchi', switchRole:'Rolni almashtirish',
+    signIn:'Kirish', username:'Foydalanuvchi', password:'Parol', badCreds:"Login yoki parol noto'g'ri",
+    costPrice:'Xarid narxi', costCol:'Xarid', sellerHidden:'(faqat boshliq uchun)',
+    cogs:'Tannarx', cogsHint:'Sotilgan tovar tannarxi', opExpenses:'Operatsion xarajatlar',
+    themeDark:"☾ Qora", themeLight:"☀ Yorug'",
+    stockChanges:"Sotuvchi tomonidan qoldiq o'zgarishi", stockChangeHint:"Qo'lda tahrir — boshliq uchun",
+    bySeller:'sotuvchi', byBoss:'boshliq', noStockChanges:"O'zgarishlar yo'q",
+    archive:'Arxiv', period:'Davr', from:'Dan', to:'Gacha',
+    last7:'7 kun', last30:'30 kun', thisMonthRange:'Shu oy', allTime:'Barcha vaqt',
+    downloadHtml:'Hisobotni yuklash (HTML)', printReport:'Chop etish',
+    summary:'Xulosa', soldItems:'Sotilgan tovarlar', installersSection:"Davrdagi o'rnatishlar",
+    productsSold:'Sotilgan', totalQty:'Jami dona', generated:'Yaratilgan',
+    defectives:'Brak', markDefective:'Brakni belgilash', defectiveBtn:'Brak',
+    reason:'Sabab', defectiveCount:'brak', noDefectives:"Brak yo'q",
+    reportedBy:'Belgiladi', recentDefectives:"So'nggi brak",
+    qtyExceedsStock:'Miqdor qoldiqdan ortiq',
+    help:'Yordam', forSeller:'Sotuvchi uchun', forBoss:'Boshliq uchun', commonFlow:'Kunlik jarayon',
+    addInstaller:"+ Usta qo'shish", installersCol:'Ustalar',
+    recentPayments:"So'nggi to'lovlar",
+  },
+};
+function t(k){ return (LOCALES[state.lang]||LOCALES.en)[k] || LOCALES.en[k] || k; }
+
+/* =================== STORAGE =================== */
+const KEY = 'gazmetprod_v2';
+const DEFAULT_STATE = {
+  lang: 'en',
+  rate: 12900,
+  products: [],   // {id,name,sku,priceUsd,costUsd,stock,supplierId,minStock}
+  suppliers: [],  // {id,name,phone,note}
+  sales: [],      // {id,date,items,paidUsd,paidSom,totalUsd,cashier}
+  expenses: [],   // {id,date,type,amountUsd,amountSom,note,supplierId?,installerId?,purchaseId?}
+  installers: [], // {id,name,phone,rateUsd}
+  installs: [],   // {id,date,installerId,customer,carPlate,amountUsd,amountSom,paidToInstallerUsd,note}
+  purchases: [],  // {id,date,supplierId,items:[{productId,name,qty,costUsd}],totalUsd,note}
+  stockLogs: [],  // {id,date,productId,productName,before,after,delta,role,reason}
+  defectives: [], // {id,date,productId,productName,qty,reason,role}
+  theme: 'dark',  // 'dark' | 'light'
+};
+
+/* Backend mode: served from http(s)://; standalone: file://. */
+const HAS_BACKEND = location.protocol === 'http:' || location.protocol === 'https:';
+const TOKEN_KEY = 'gazmetprod_token';
+let authToken = HAS_BACKEND ? localStorage.getItem(TOKEN_KEY) : null;
+
+async function apiFetch(method, path, body){
+  const opts = {
+    method,
+    headers: {
+      'Content-Type':'application/json',
+      ...(authToken?{'Authorization':'Bearer '+authToken}:{})
+    },
+  };
+  if(body!==undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  if(res.status===401){
+    authToken = null; localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem('role');
+    location.reload(); return;
+  }
+  if(!res.ok){ const txt = await res.text(); throw new Error(`API ${res.status}: ${txt}`);}
+  return res.status===204 ? null : res.json();
+}
+
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw){
+      const old = localStorage.getItem('gazmetprod_v1');
+      if(old) return {...structuredClone(DEFAULT_STATE), ...JSON.parse(old)};
+      return structuredClone(DEFAULT_STATE);
+    }
+    return {...structuredClone(DEFAULT_STATE), ...JSON.parse(raw)};
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+
+let saveTimer = null;
+let savePending = false;
+async function syncToBackend(){
+  if(!HAS_BACKEND || !authToken) return;
+  try { await apiFetch('PUT','/api/state',{data:state}); }
+  catch(e){ console.error('Sync failed', e); }
+}
+function save(){
+  if(HAS_BACKEND && authToken){
+    // Always store local snapshot for offline reads
+    localStorage.setItem(KEY, JSON.stringify(state));
+    // Debounce backend sync (500ms)
+    clearTimeout(saveTimer);
+    savePending = true;
+    saveTimer = setTimeout(async()=>{ savePending=false; await syncToBackend(); }, 500);
+  } else {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+}
+// Flush pending saves before page unload
+window.addEventListener('beforeunload', ()=>{
+  if(savePending && navigator.sendBeacon && HAS_BACKEND && authToken){
+    const payload = new Blob([JSON.stringify({data:state})],{type:'application/json'});
+    // sendBeacon can't set headers, so include token in URL as query (server can be extended)
+    // For now, just attempt a sync fetch as fallback
+    try { fetch('/api/state',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},body:JSON.stringify({data:state})}); } catch(e){}
+  }
+});
+
+let state = loadLocal();
+const uid = () => Math.random().toString(36).slice(2,10);
+const today = () => new Date().toISOString().slice(0,10);
+const nowISO = () => new Date().toISOString();
+
+/* =================== CURRENCY =================== */
+const fmtUsd = v => '$' + (Number(v)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtSom = v => Math.round(Number(v)||0).toLocaleString('en-US') + ' som';
+const fmtNum = v => Math.round(Number(v)||0).toLocaleString('en-US');
+function updateSomHint(inputId, hintId){
+  const inp = document.getElementById(inputId), hint = document.getElementById(hintId);
+  if(!inp || !hint) return;
+  const v = Number(inp.value)||0;
+  hint.textContent = v ? '= '+fmtNum(v)+' som' : '';
+}
+const usdToSom = v => (Number(v)||0) * state.rate;
+const somToUsd = v => (Number(v)||0) / state.rate;
+// Returns the list of installer assignments for a job (supports old single-installer + new multi-installer shape)
+function jobInstallers(j){
+  if(Array.isArray(j.installers) && j.installers.length) return j.installers;
+  if(j.installerId) return [{installerId:j.installerId, paidUsd:j.paidToInstallerUsd||0, paidSom:j.paidToInstallerSom||0}];
+  return [];
+}
+const installerPayUsd = j => jobInstallers(j).reduce((s,a)=>s+(a.paidUsd||0)+somToUsd(a.paidSom||0),0);
+function installerPayForJob(j, installerId){
+  return jobInstallers(j).filter(a=>a.installerId===installerId).reduce((s,a)=>s+(a.paidUsd||0)+somToUsd(a.paidSom||0),0);
+}
+
+/* =================== NAV =================== */
+const NAV_ALL = [
+  {id:'dash', key:'dashboard', fn:()=>viewDashboard(), roles:['boss']},
+  {id:'pos', key:'sell', fn:()=>viewPOS(), roles:['seller']},
+  {id:'products', key:'products', fn:()=>viewProducts(), roles:['boss','seller']},
+  {id:'suppliers', key:'suppliers', fn:()=>viewSuppliers(), roles:['boss','seller']},
+  {id:'purchases', key:'purchases', fn:()=>viewPurchases(), roles:['boss','seller']},
+  {id:'sales', key:'sales', fn:()=>viewSales(), roles:['boss','seller']},
+  {id:'expenses', key:'expenses', fn:()=>viewExpenses(), roles:['boss','seller']},
+  {id:'installers', key:'installers', fn:()=>viewInstallers(), roles:['boss','seller']},
+  {id:'installs', key:'installs', fn:()=>viewInstalls(), roles:['boss','seller']},
+  {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller']},
+  {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
+  {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss']},
+];
+let role = sessionStorage.getItem('role') || null;
+const NAV = () => NAV_ALL.filter(n=>n.roles.includes(role));
+const isBoss = () => role==='boss';
+
+let currentNav = 'dash';
+function togglePass(){
+  const inp = document.getElementById('login-pass');
+  const btn = document.getElementById('pass-eye');
+  if(inp.type==='password'){ inp.type='text'; btn.textContent='🙈'; btn.style.color='var(--accent)';}
+  else { inp.type='password'; btn.textContent='👁'; btn.style.color='var(--muted)';}
+  inp.focus();
+}
+/* Standalone fallback creds (used only when no backend) */
+const CREDS = {
+  boss: {user:'boss', pass:'million'},
+  seller: {user:'seller', pass:'work'},
+};
+async function tryLogin(){
+  const u = (document.getElementById('login-user').value||'').trim();
+  const p = (document.getElementById('login-pass').value||'').trim();
+  const err = document.getElementById('login-error');
+  err.textContent = '';
+  if(HAS_BACKEND){
+    try{
+      const res = await fetch('/api/auth/login',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({username:u, password:p})
+      });
+      if(!res.ok){ err.textContent = t('badCreds'); return;}
+      const data = await res.json();
+      authToken = data.token;
+      localStorage.setItem(TOKEN_KEY, authToken);
+      document.getElementById('login-pass').value = '';
+      // pull latest state from server (overrides local snapshot)
+      try{
+        const s = await apiFetch('GET','/api/state');
+        if(s?.data) state = {...structuredClone(DEFAULT_STATE), ...s.data};
+      }catch(e){ console.error('state load failed', e);}
+      login(data.role);
+    }catch(e){ err.textContent = 'Network error'; console.error(e);}
+    return;
+  }
+  // Standalone (no backend)
+  const ul = u.toLowerCase(), pl = p.toLowerCase();
+  let matched = null;
+  for(const r of Object.keys(CREDS)){
+    if(CREDS[r].user===ul && CREDS[r].pass===pl){ matched = r; break;}
+  }
+  if(!matched){ err.textContent = t('badCreds'); return;}
+  document.getElementById('login-pass').value = '';
+  login(matched);
+}
+function login(r){
+  role = r; sessionStorage.setItem('role', r);
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const nav = NAV();
+  currentNav = nav[0].id;
+  showApp();
+}
+async function logout(){
+  if(HAS_BACKEND && authToken){
+    try { await fetch('/api/auth/logout',{method:'POST',headers:{'Authorization':'Bearer '+authToken}}); } catch(e){}
+    authToken = null; localStorage.removeItem(TOKEN_KEY);
+  }
+  sessionStorage.removeItem('role'); role = null;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login').classList.remove('hidden');
+  applyLoginI18n();
+  setLangButtons();
+}
+function showApp(){
+  applyTheme();
+  renderNav();
+  setLangButtons();
+  applyStaticI18n();
+  goto(currentNav);
+  updateRateLabel();
+  document.getElementById('role-tag').innerHTML = `<span class="chip">${t(role)}</span>`;
+  document.getElementById('logout-btn').textContent = '← ' + t('switchRole');
+  document.getElementById('theme-btn').textContent = state.theme==='light' ? t('themeDark') : t('themeLight');
+}
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', state.theme||'dark');
+}
+function toggleTheme(){
+  state.theme = state.theme==='light' ? 'dark' : 'light';
+  save(); applyTheme();
+  const btn = document.getElementById('theme-btn');
+  if(btn) btn.textContent = state.theme==='light' ? t('themeDark') : t('themeLight');
+}
+function logStockChange(productId, productName, before, after, reason){
+  if(before===after) return;
+  state.stockLogs = state.stockLogs || [];
+  state.stockLogs.push({
+    id:uid(), date:nowISO(),
+    productId, productName,
+    before, after, delta: after-before,
+    role, reason: reason||'manual'
+  });
+}
+function applyLoginI18n(){
+  document.getElementById('login-sub').textContent = t('signIn');
+  document.getElementById('login-user-label').textContent = t('username');
+  document.getElementById('login-pass-label').textContent = t('password');
+  document.getElementById('login-btn').textContent = t('signIn');
+}
+function setLang(l){
+  state.lang = l; save();
+  setLangButtons();
+  if(role){
+    applyStaticI18n();
+    renderNav();
+    goto(currentNav);
+    updateRateLabel();
+    document.getElementById('role-tag').innerHTML = `<span class="chip">${t(role)}</span>`;
+    document.getElementById('logout-btn').textContent = '← ' + t('switchRole');
+  } else {
+    applyLoginI18n();
+  }
+}
+function setLangButtons(){
+  document.querySelectorAll('.lang-pick button').forEach(b=>b.classList.toggle('active', b.dataset.lang===state.lang));
+}
+function applyStaticI18n(){
+  document.getElementById('brand-sub').textContent = t('brandSub');
+  document.getElementById('rate-prefix').textContent = t('ratePrefix');
+}
+function updateRateLabel(){
+  document.getElementById('rate-label').textContent = `1$ = ${Math.round(state.rate).toLocaleString()} som`;
+}
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = '';
+  NAV().forEach(item=>{
+    const b = document.createElement('button');
+    b.className = 'nav-btn'; b.textContent = t(item.key); b.dataset.id = item.id;
+    b.onclick = ()=>goto(item.id);
+    nav.appendChild(b);
+  });
+  setActiveNav(currentNav);
+}
+function goto(id){
+  const list = NAV();
+  let item = list.find(x=>x.id===id);
+  if(!item) item = list[0];
+  if(!item) return;
+  currentNav = item.id;
+  setActiveNav(item.id);
+  document.getElementById('page-title').textContent = t(item.key);
+  item.fn();
+}
+function setActiveNav(id){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.id===id));
+}
+const V = () => document.getElementById('view');
+
+/* =================== MODAL =================== */
+function modal(html){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this) closeModal()"><div class="modal">${html}</div></div>`;
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = '';}
+
+/* =================== POS =================== */
+let cart = [];
+function viewPOS(){
+  cart = [];
+  V().innerHTML = `
+    <div class="pos">
+      <div>
+        <div class="card" style="display:flex;gap:10px;align-items:center">
+          <input id="pos-search" placeholder="${t('search')}" oninput="renderPOSGrid()" style="flex:1">
+          <button class="primary" onclick="openAddProduct()">${t('newProduct')}</button>
+        </div>
+        <div id="pos-grid" class="product-grid"></div>
+      </div>
+      <div>
+        <div class="cart">
+          <h3>${t('currentSale')}</h3>
+          <div id="cart-items"></div>
+          <div class="cart-total"><span>${t('total')}</span><span id="cart-total-line">$0.00</span></div>
+          <div class="pay-split">
+            <div style="color:var(--muted);font-size:12px;margin-bottom:6px">${t('splitPayment')}</div>
+            <div class="row">
+              <div class="col"><label>${t('paidInUsd')}</label><input id="pay-usd" type="number" step="0.01" value="0" oninput="recalcPay()"></div>
+              <div class="col"><label>${t('paidInSom')}</label><input id="pay-som" type="number" step="1" value="0" oninput="recalcPay();updateSomHint('pay-som','pay-som-hint')"><small id="pay-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+            </div>
+            <div id="pay-status" style="margin-top:8px;font-size:13px"></div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button onclick="autoPayUsd()">${t('payAllUsd')}</button>
+              <button onclick="autoPaySom()">${t('payAllSom')}</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px">
+            <button class="ghost" onclick="cart=[];renderCart()">${t('clear')}</button>
+            <button class="primary" style="flex:1" onclick="completeSale()">${t('completeSale')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  renderPOSGrid(); renderCart();
+}
+function renderPOSGrid(){
+  const q = (document.getElementById('pos-search')?.value||'').toLowerCase();
+  const grid = document.getElementById('pos-grid');
+  const list = state.products.filter(p=>(p.name+' '+(p.sku||'')).toLowerCase().includes(q));
+  if(!list.length){ grid.innerHTML = `<div class="card">${t('noData')}</div>`; return;}
+  grid.innerHTML = list.map(p=>{
+    const out = p.stock<=0 ? 'out' : '';
+    return `<div class="prod-card ${out}" onclick="${p.stock>0?`addToCart('${p.id}')`:''}">
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="price">${fmtUsd(p.priceUsd)}</div>
+      <div style="color:var(--muted);font-size:12px">${fmtSom(usdToSom(p.priceUsd))}</div>
+      <div class="stock">${t('stockCol')}: ${p.stock}${p.sku?' · '+escapeHtml(p.sku):''}</div>
+    </div>`;
+  }).join('');
+}
+function addToCart(pid){
+  const p = state.products.find(x=>x.id===pid);
+  const it = cart.find(c=>c.productId===pid);
+  const cur = it?it.qty:0;
+  if(cur+1 > p.stock){ alert(t('notEnoughStock')); return;}
+  if(it) it.qty++; else cart.push({productId:pid, qty:1, priceUsd:p.priceUsd});
+  renderCart();
+}
+function changeQty(pid, d){
+  const it = cart.find(c=>c.productId===pid); if(!it) return;
+  const p = state.products.find(x=>x.id===pid);
+  const next = it.qty + d;
+  if(next<=0){ cart = cart.filter(c=>c.productId!==pid); renderCart(); return;}
+  if(next>p.stock){ alert(t('notEnoughStock')); return;}
+  it.qty = next; renderCart();
+}
+function changeCartPrice(pid, val){
+  const it = cart.find(c=>c.productId===pid); if(!it) return;
+  it.priceUsd = Math.max(0, Number(val)||0);
+  renderCart();
+}
+function renderCart(){
+  const box = document.getElementById('cart-items'); if(!box) return;
+  if(!cart.length) box.innerHTML = `<div style="color:var(--muted);padding:10px 0">${t('cartEmpty')}</div>`;
+  else box.innerHTML = cart.map(it=>{
+    const p = state.products.find(x=>x.id===it.productId);
+    const listPrice = p.priceUsd;
+    const diff = it.priceUsd - listPrice;
+    let hint = '';
+    if(Math.abs(diff)>0.001){
+      const cls = diff>0 ? 'good' : 'bad';
+      const sign = diff>0 ? '+' : '';
+      hint = ` <span class="chip ${cls}" style="padding:1px 6px;font-size:10px">${sign}${fmtUsd(diff)}</span>`;
+    }
+    return `<div class="cart-item">
+      <div style="flex:1">
+        <div style="font-weight:600">${escapeHtml(p.name)}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
+          <span style="color:var(--muted);font-size:12px">$</span>
+          <input type="number" step="0.01" min="0" value="${it.priceUsd}" onchange="changeCartPrice('${p.id}',this.value)" style="width:78px;padding:3px 6px;font-size:12px">
+          <span style="color:var(--muted);font-size:12px">× ${it.qty} = <b style="color:var(--text)">${fmtUsd(it.priceUsd*it.qty)}</b>${hint}</span>
+        </div>
+      </div>
+      <div class="qty-ctrl">
+        <button onclick="changeQty('${p.id}',-1)">−</button>
+        <span style="min-width:20px;text-align:center">${it.qty}</span>
+        <button onclick="changeQty('${p.id}',1)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+  const total = cartTotalUsd();
+  document.getElementById('cart-total-line').innerHTML = `${fmtUsd(total)}<br><span style="font-size:13px;color:var(--muted);font-weight:400">${fmtSom(usdToSom(total))}</span>`;
+  recalcPay();
+}
+function cartTotalUsd(){ return cart.reduce((s,it)=>s + (Number(it.priceUsd)||0)*it.qty, 0);}
+function recalcPay(){
+  const total = cartTotalUsd();
+  const u = Number(document.getElementById('pay-usd')?.value)||0;
+  const s = Number(document.getElementById('pay-som')?.value)||0;
+  const paidUsd = u + somToUsd(s);
+  const diff = paidUsd - total;
+  const box = document.getElementById('pay-status'); if(!box) return;
+  if(!cart.length){ box.innerHTML=''; return;}
+  if(Math.abs(diff)<0.01) box.innerHTML = `<span class="chip good">${t('exactPayment')}</span>`;
+  else if(diff>0) box.innerHTML = `<span class="chip warn">${t('change')}: ${fmtUsd(diff)} (${fmtSom(usdToSom(diff))})</span>`;
+  else box.innerHTML = `<span class="chip bad">${t('missing')}: ${fmtUsd(-diff)} (${fmtSom(usdToSom(-diff))})</span>`;
+}
+function autoPayUsd(){ document.getElementById('pay-usd').value = cartTotalUsd().toFixed(2); document.getElementById('pay-som').value = 0; recalcPay();}
+function autoPaySom(){ document.getElementById('pay-som').value = Math.round(usdToSom(cartTotalUsd())); document.getElementById('pay-usd').value = 0; recalcPay();}
+function completeSale(){
+  if(!cart.length){ alert(t('cartEmpty')); return;}
+  const total = cartTotalUsd();
+  const paidUsd = Number(document.getElementById('pay-usd').value)||0;
+  const paidSom = Number(document.getElementById('pay-som').value)||0;
+  const received = paidUsd + somToUsd(paidSom);
+  if(received + 0.01 < total){ if(!confirm(t('underpayment')+' '+fmtUsd(total-received)+t('recordAnyway'))) return;}
+  state.sales.push({
+    id:uid(), date:nowISO(), cashier:'user',
+    items: cart.map(it=>{const p=state.products.find(x=>x.id===it.productId);return {productId:p.id,name:p.name,qty:it.qty,priceUsd:Number(it.priceUsd)||0};}),
+    paidUsd, paidSom, totalUsd: total
+  });
+  cart.forEach(it=>{const p=state.products.find(x=>x.id===it.productId); p.stock=Math.max(0,p.stock-it.qty);});
+  save();
+  alert(t('saleComplete')+' '+fmtUsd(total));
+  viewPOS();
+}
+
+/* =================== PRODUCTS =================== */
+function defectiveQtyOf(productId){
+  return (state.defectives||[]).filter(d=>d.productId===productId).reduce((s,d)=>s+(d.qty||0),0);
+}
+function viewProducts(){
+  const boss = isBoss();
+  const rows = state.products.map(p=>{
+    const sup = state.suppliers.find(s=>s.id===p.supplierId);
+    const low = p.stock<=(p.minStock||0);
+    const defQty = defectiveQtyOf(p.id);
+    return `<tr>
+      <td><b>${escapeHtml(p.name)}</b>${p.sku?'<br><small style="color:var(--muted)">'+escapeHtml(p.sku)+'</small>':''}</td>
+      ${boss?`<td style="color:var(--neg)">${fmtUsd(p.costUsd||0)}</td>`:''}
+      <td>${fmtUsd(p.priceUsd)}<br><small style="color:var(--muted)">${fmtSom(usdToSom(p.priceUsd))}</small></td>
+      <td>${p.stock} ${low?'<span class="chip bad">'+t('lowStock')+'</span>':''} ${defQty>0?`<span class="chip warn" title="${t('defectives')}">${defQty} ${t('defectiveCount')}</span>`:''}</td>
+      <td>${sup?escapeHtml(sup.name):'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right">
+        <button onclick="openAddProduct('${p.id}')">${t('edit')}</button>
+        ${boss?`<button onclick="restock('${p.id}')">${t('restockBtn')}</button>`:''}
+        <button onclick="openDefective('${p.id}')" style="background:#5a3a0e;color:#ffd280;border-color:#7a5512">${t('defectiveBtn')}</button>
+        <button class="danger" onclick="delProduct('${p.id}')">${t('del')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+  const headerInfo = boss
+    ? `${t('products')}: <b>${state.products.length}</b> · ${t('inventoryValue')}: <b>${fmtUsd(inventoryValue())}</b>`
+    : `${t('products')}: <b>${state.products.length}</b>`;
+  const cols = boss ? 6 : 5;
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div>${headerInfo}</div>
+      <button class="primary" onclick="openAddProduct()">${t('newProduct')}</button>
+    </div>
+    <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>${t('name')}</th>${boss?`<th>${t('costCol')}</th>`:''}<th>${t('price')}</th><th>${t('stockCol')}</th><th>${t('supplier')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="${cols}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function inventoryValue(){ return state.products.reduce((s,p)=>s+p.priceUsd*p.stock,0);}
+function openAddProduct(id){
+  const p = id ? state.products.find(x=>x.id===id) : {name:'',sku:'',priceUsd:0,costUsd:0,stock:0,supplierId:'',minStock:0};
+  const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}" ${p.supplierId===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('');
+  const costRow = isBoss() ? `
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('costPrice')} (USD)</label><input id="f-cost" type="number" step="0.01" value="${p.costUsd||0}"></div>
+      <div class="col"><label>${t('price')} (USD)</label><input id="f-price" type="number" step="0.01" value="${p.priceUsd}"></div>
+    </div>` : `
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('price')} (USD)</label><input id="f-price" type="number" step="0.01" value="${p.priceUsd}"></div>
+    </div>`;
+  modal(`
+    <h3>${id?t('editProduct'):t('newProduct')}</h3>
+    <label>${t('name')}</label><input id="f-name" value="${escapeAttr(p.name)}">
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('sku')}</label><input id="f-sku" value="${escapeAttr(p.sku||'')}"></div>
+    </div>
+    ${costRow}
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('stockCol')}</label><input id="f-stock" type="number" value="${p.stock}"></div>
+      <div class="col"><label>${t('lowWarn')}</label><input id="f-min" type="number" value="${p.minStock||0}"></div>
+    </div>
+    <label style="margin-top:10px">${t('supplier')}</label>
+    <select id="f-sup">${supOpts}</select>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveProduct('${id||''}')">${t('save')}</button>
+    </div>`);
+}
+function saveProduct(id){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ alert(t('required')); return;}
+  const existing = id ? state.products.find(x=>x.id===id) : null;
+  const obj = {
+    name,
+    sku: document.getElementById('f-sku').value.trim(),
+    priceUsd: Number(document.getElementById('f-price').value)||0,
+    stock: Number(document.getElementById('f-stock').value)||0,
+    minStock: Number(document.getElementById('f-min').value)||0,
+    supplierId: document.getElementById('f-sup').value,
+  };
+  if(isBoss()){
+    obj.costUsd = Number(document.getElementById('f-cost').value)||0;
+  } else if(existing){
+    obj.costUsd = existing.costUsd||0;
+  } else {
+    obj.costUsd = 0;
+  }
+  if(id){
+    const beforeStock = existing.stock;
+    Object.assign(existing, obj);
+    logStockChange(id, obj.name, beforeStock, obj.stock, 'manual edit');
+  } else {
+    const np = {id:uid(), ...obj};
+    state.products.push(np);
+    if(obj.stock>0) logStockChange(np.id, obj.name, 0, obj.stock, 'new product');
+  }
+  save(); closeModal(); viewProducts();
+}
+function restock(id){
+  const p = state.products.find(x=>x.id===id);
+  const n = prompt(t('restockQ')+' "'+p.name+'"?', '10');
+  if(n===null) return;
+  const add = Number(n); if(!add || add<=0) return;
+  p.stock += add;
+  const cost = prompt(t('restockCost'), '');
+  if(cost && Number(cost)>0){
+    state.expenses.push({id:uid(),date:today(),type:'purchase',amountUsd:Number(cost),amountSom:0,note:`Restock ${p.name} x${add}`});
+  }
+  save(); viewProducts();
+}
+function delProduct(id){
+  if(!confirm(t('confirmDelete'))) return;
+  state.products = state.products.filter(x=>x.id!==id); save(); viewProducts();
+}
+function openDefective(productId){
+  const p = state.products.find(x=>x.id===productId); if(!p) return;
+  modal(`
+    <h3>${t('markDefective')}</h3>
+    <div style="background:var(--panel2);padding:10px;border-radius:8px;margin-bottom:12px">
+      <b>${escapeHtml(p.name)}</b><br>
+      <span style="color:var(--muted);font-size:12px">${t('stockCol')}: ${p.stock} · ${t('defectives')}: ${defectiveQtyOf(p.id)}</span>
+    </div>
+    <label>${t('qty')}</label>
+    <input id="def-qty" type="number" min="1" max="${p.stock}" value="1">
+    <label style="margin-top:10px">${t('reason')}</label>
+    <textarea id="def-reason" rows="3" placeholder="${t('reason')}"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveDefective('${productId}')">${t('save')}</button>
+    </div>`);
+}
+function saveDefective(productId){
+  const p = state.products.find(x=>x.id===productId); if(!p) return;
+  const qty = Number(document.getElementById('def-qty').value)||0;
+  const reason = document.getElementById('def-reason').value.trim();
+  if(qty<=0){ alert(t('invalidAmount')||'Invalid'); return;}
+  if(qty > p.stock){ alert(t('qtyExceedsStock')); return;}
+  state.defectives = state.defectives || [];
+  state.defectives.push({
+    id: uid(), date: nowISO(),
+    productId, productName: p.name,
+    qty, reason, role
+  });
+  const before = p.stock;
+  p.stock -= qty;
+  logStockChange(productId, p.name, before, p.stock, `defective ×${qty}${reason?': '+reason:''}`);
+  save(); closeModal(); viewProducts();
+}
+function delDefective(id){
+  if(!confirm(t('confirmDelete'))) return;
+  state.defectives = (state.defectives||[]).filter(x=>x.id!==id);
+  save(); viewDefectives();
+}
+function viewDefectives(){
+  const list = [...(state.defectives||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const total = list.reduce((s,d)=>s+(d.qty||0),0);
+  // Aggregate by product
+  const agg = {};
+  list.forEach(d=>{
+    if(!agg[d.productId]) agg[d.productId] = {name:d.productName, qty:0, count:0};
+    agg[d.productId].qty += d.qty;
+    agg[d.productId].count += 1;
+  });
+  const aggRows = Object.values(agg).sort((a,b)=>b.qty-a.qty).map(a=>`<tr>
+    <td><b>${escapeHtml(a.name)}</b></td>
+    <td><span class="chip warn">${a.qty}</span></td>
+    <td>${a.count}</td>
+  </tr>`).join('');
+  const rows = list.map(d=>`<tr>
+    <td>${new Date(d.date).toLocaleString()}</td>
+    <td><b>${escapeHtml(d.productName)}</b></td>
+    <td><span class="chip warn">${d.qty}</span></td>
+    <td>${escapeHtml(d.reason||'')}</td>
+    <td><span class="chip ${d.role==='seller'?'warn':''}">${t(d.role||'user')}</span></td>
+    <td style="text-align:right">${isBoss()?`<button class="danger" onclick="delDefective('${d.id}')">${t('del')}</button>`:''}</td>
+  </tr>`).join('');
+  V().innerHTML = `
+    <div class="row">
+      <div class="kpi"><div class="l">${t('defectives')}</div><div class="v" style="color:var(--hi)">${total}</div></div>
+      <div class="kpi"><div class="l">${t('productsSold')||'Products'}</div><div class="v">${Object.keys(agg).length}</div></div>
+      <div class="kpi"><div class="l">${t('expenseEntries')||'Reports'}</div><div class="v">${list.length}</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>${t('summary')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('name')}</th><th>${t('totalQty')}</th><th>${t('expenseEntries')||'Reports'}</th></tr></thead>
+        <tbody>${aggRows||`<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">${t('noDefectives')}</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="card" style="padding:0;margin-top:12px">
+      <table>
+        <thead><tr><th>${t('date')}</th><th>${t('name')}</th><th>${t('qty')}</th><th>${t('reason')}</th><th>${t('reportedBy')}</th><th></th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noDefectives')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+
+/* =================== SUPPLIERS =================== */
+function viewSuppliers(){
+  const rows = state.suppliers.map(s=>{
+    const purchases = state.purchases.filter(p=>p.supplierId===s.id);
+    const purchaseTotal = purchases.reduce((a,p)=>a+(p.totalUsd||0),0);
+    const productCount = state.products.filter(p=>p.supplierId===s.id).length;
+    return `<tr>
+      <td><b>${escapeHtml(s.name)}</b></td>
+      <td>${escapeHtml(s.phone||'')}</td>
+      <td>${productCount}</td>
+      <td>${purchases.length}</td>
+      <td>${fmtUsd(purchaseTotal)}</td>
+      <td>${escapeHtml(s.note||'')}</td>
+      <td style="text-align:right">
+        <button onclick="openSupplier('${s.id}')">${t('edit')}</button>
+        <button onclick="viewSupplierHistory('${s.id}')">${t('purchaseHistory')}</button>
+        <button class="danger" onclick="delSupplier('${s.id}')">${t('del')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div>${t('suppliersKpi')}: <b>${state.suppliers.length}</b></div>
+      <button class="primary" onclick="openSupplier()">${t('newSupplier')}</button>
+    </div>
+    <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>${t('name')}</th><th>${t('phone')}</th><th>${t('productsCol')}</th><th>${t('purchases')}</th><th>${t('totalPurchases')}</th><th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function viewSupplierHistory(sid){
+  goto('purchases');
+  setTimeout(()=>{ const sel = document.getElementById('purch-filter'); if(sel){sel.value=sid; renderPurchaseList();} },50);
+}
+function openSupplier(id){
+  const s = id ? state.suppliers.find(x=>x.id===id) : {name:'',phone:'',note:''};
+  modal(`
+    <h3>${id?t('editSupplier'):t('newSupplier')}</h3>
+    <label>${t('name')}</label><input id="s-name" value="${escapeAttr(s.name)}">
+    <label style="margin-top:10px">${t('phone')}</label><input id="s-phone" value="${escapeAttr(s.phone||'')}">
+    <label style="margin-top:10px">${t('note')}</label><textarea id="s-note" rows="3">${escapeHtml(s.note||'')}</textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveSupplier('${id||''}')">${t('save')}</button>
+    </div>`);
+}
+function saveSupplier(id){
+  const name = document.getElementById('s-name').value.trim();
+  if(!name){ alert(t('required')); return;}
+  const obj = {name, phone:document.getElementById('s-phone').value.trim(), note:document.getElementById('s-note').value.trim()};
+  if(id) Object.assign(state.suppliers.find(x=>x.id===id), obj);
+  else state.suppliers.push({id:uid(),...obj});
+  save(); closeModal(); viewSuppliers();
+}
+function delSupplier(id){ if(!confirm(t('confirmDelete'))) return; state.suppliers = state.suppliers.filter(x=>x.id!==id); save(); viewSuppliers();}
+
+/* =================== PURCHASES =================== */
+let purchaseDraft = []; // for modal: [{productId, qty, costUsd}]
+function viewPurchases(){
+  const boss = isBoss();
+  const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const headerStats = boss
+    ? `<div>${t('purchaseCount')}: <b>${state.purchases.length}</b></div>
+       <div>${t('totalPurchases')}: <b>${fmtUsd(state.purchases.reduce((s,p)=>s+(p.totalUsd||0),0))}</b></div>`
+    : `<div>${t('purchaseCount')}: <b>${state.purchases.length}</b></div>`;
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${headerStats}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="margin:0">${t('supplier')}</label>
+        <select id="purch-filter" onchange="renderPurchaseList()" style="width:180px">${supOpts}</select>
+        <button class="primary" onclick="openPurchase()">${t('newPurchase')}</button>
+      </div>
+    </div>
+    <div id="purch-list"></div>`;
+  renderPurchaseList();
+}
+function renderPurchaseList(){
+  const boss = isBoss();
+  const filter = document.getElementById('purch-filter')?.value || '';
+  const list = [...state.purchases].filter(p=>!filter||p.supplierId===filter).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const rows = list.map(p=>{
+    const sup = state.suppliers.find(s=>s.id===p.supplierId);
+    const items = p.items.map(i=> boss
+      ? `${escapeHtml(i.name)} ×${i.qty} (${fmtUsd(i.costUsd)})`
+      : `${escapeHtml(i.name)} ×${i.qty}`
+    ).join(', ');
+    return `<tr>
+      <td>${p.date}</td>
+      <td>${sup?escapeHtml(sup.name):'—'}</td>
+      <td style="max-width:340px">${items}</td>
+      ${boss?`<td>${fmtUsd(p.totalUsd)}<br><small style="color:var(--muted)">${fmtSom(usdToSom(p.totalUsd))}</small></td>`:''}
+      <td>${escapeHtml(p.note||'')}</td>
+      <td style="text-align:right"><button class="danger" onclick="delPurchase('${p.id}')">${t('del')}</button></td>
+    </tr>`;
+  }).join('');
+  const cols = boss ? 6 : 5;
+  document.getElementById('purch-list').innerHTML = `<div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('supplier')}</th><th>${t('items')}</th>${boss?`<th>${t('total')}</th>`:''}<th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="${cols}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openPurchase(){
+  if(!state.suppliers.length){ alert(t('addSupplierFirst')); return;}
+  if(!state.products.length){ alert(t('addProductFirst')); return;}
+  const first = state.products[0];
+  purchaseDraft = [{productId:first.id, qty:1, costUsd:first.costUsd||0}];
+  const supOpts = state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  const totalBlock = isBoss() ? `
+    <div style="margin-top:14px;padding:10px;background:var(--panel2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+      <b>${t('total')}</b>
+      <b id="p-total" style="font-size:18px">$0.00</b>
+    </div>` : '';
+  modal(`
+    <h3>${t('logPurchase')}</h3>
+    <div class="row">
+      <div class="col"><label>${t('date')}</label><input id="p-date" type="date" value="${today()}"></div>
+      <div class="col"><label>${t('supplier')}</label><select id="p-sup">${supOpts}</select></div>
+    </div>
+    <label style="margin-top:12px">${t('items')}</label>
+    <div id="p-items"></div>
+    <button onclick="addPurchaseLine()" style="margin-top:6px">${t('addItem')}</button>
+    ${totalBlock}
+    <label style="margin-top:10px">${t('purchaseNote')}</label>
+    <textarea id="p-note" rows="2"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="savePurchase()">${t('save')}</button>
+    </div>`);
+  renderPurchaseLines();
+}
+function renderPurchaseLines(){
+  const box = document.getElementById('p-items'); if(!box) return;
+  const boss = isBoss();
+  const prodOpts = state.products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  box.innerHTML = purchaseDraft.map((line,idx)=>{
+    const cols = boss ? '2fr 80px 100px 30px' : '2fr 80px 30px';
+    const costInput = boss
+      ? `<input type="number" step="0.01" min="0" value="${line.costUsd}" onchange="updatePurchaseLine(${idx},'costUsd',this.value)" placeholder="${t('cost')}">`
+      : '';
+    return `<div class="purchase-line" style="grid-template-columns:${cols}">
+      <select onchange="updatePurchaseLine(${idx},'productId',this.value)">${prodOpts.replace(`value="${line.productId}"`,`value="${line.productId}" selected`)}</select>
+      <input type="number" min="1" value="${line.qty}" onchange="updatePurchaseLine(${idx},'qty',this.value)" placeholder="${t('qty')}">
+      ${costInput}
+      <button class="danger" onclick="removePurchaseLine(${idx})" style="padding:4px 8px">×</button>
+    </div>`;
+  }).join('');
+  updatePurchaseTotal();
+}
+function addPurchaseLine(){
+  const p = state.products[0];
+  purchaseDraft.push({productId:p.id, qty:1, costUsd:p.costUsd||0});
+  renderPurchaseLines();
+}
+function removePurchaseLine(idx){ purchaseDraft.splice(idx,1); renderPurchaseLines();}
+function updatePurchaseLine(idx,field,val){
+  if(field==='qty'||field==='costUsd') purchaseDraft[idx][field] = Number(val)||0;
+  else {
+    purchaseDraft[idx][field] = val;
+    if(field==='productId'){
+      const p = state.products.find(x=>x.id===val);
+      purchaseDraft[idx].costUsd = p?.costUsd || 0;
+    }
+  }
+  updatePurchaseTotal();
+}
+function updatePurchaseTotal(){
+  const total = purchaseDraft.reduce((s,l)=>s+l.qty*l.costUsd,0);
+  const el = document.getElementById('p-total');
+  if(el) el.innerHTML = `${fmtUsd(total)} <small style="color:var(--muted);font-weight:400">${fmtSom(usdToSom(total))}</small>`;
+}
+function savePurchase(){
+  const supplierId = document.getElementById('p-sup').value;
+  const date = document.getElementById('p-date').value || today();
+  const valid = purchaseDraft.filter(l=>l.productId && l.qty>0);
+  if(!valid.length){ alert(t('invalidAmount')); return;}
+  const items = valid.map(l=>{
+    const p = state.products.find(x=>x.id===l.productId);
+    const costUsd = isBoss() ? (Number(l.costUsd)||0) : (p.costUsd||0);
+    return {productId:p.id, name:p.name, qty:l.qty, costUsd};
+  });
+  const totalUsd = items.reduce((s,i)=>s+i.qty*i.costUsd,0);
+  const purchase = {id:uid(), date, supplierId, items, totalUsd, note:document.getElementById('p-note').value.trim()};
+  state.purchases.push(purchase);
+  items.forEach(i=>{ const p=state.products.find(x=>x.id===i.productId); if(p) p.stock += i.qty;});
+  if(totalUsd>0){
+    const sup = state.suppliers.find(s=>s.id===supplierId);
+    state.expenses.push({id:uid(),date,type:'purchase',amountUsd:totalUsd,amountSom:0,supplierId,purchaseId:purchase.id,note:`${t('expense_purchase')}${sup?' — '+sup.name:''}`});
+  }
+  save(); closeModal();
+  alert(t('purchaseSaved'));
+  viewPurchases();
+}
+function delPurchase(id){
+  if(!confirm(t('confirmDelete'))) return;
+  state.purchases = state.purchases.filter(x=>x.id!==id);
+  state.expenses = state.expenses.filter(e=>e.purchaseId!==id);
+  save(); viewPurchases();
+}
+
+/* =================== SALES HISTORY =================== */
+function viewSales(){
+  const sorted = [...state.sales].sort((a,b)=>b.date.localeCompare(a.date));
+  const totalUsd = sorted.reduce((s,x)=>s+x.totalUsd,0);
+  const paidUsd = sorted.reduce((s,x)=>s+x.paidUsd,0);
+  const paidSom = sorted.reduce((s,x)=>s+x.paidSom,0);
+  const rows = sorted.map(s=>`<tr>
+      <td>${new Date(s.date).toLocaleString()}</td>
+      <td style="max-width:320px">${s.items.map(i=>escapeHtml(i.name)+' ×'+i.qty).join(', ')}</td>
+      <td>${fmtUsd(s.totalUsd)}</td>
+      <td>${fmtUsd(s.paidUsd)}</td>
+      <td>${fmtSom(s.paidSom)}</td>
+    </tr>`).join('');
+  const kpis = isBoss() ? `
+    <div class="row">
+      <div class="kpi"><div class="l">${t('salesCount')}</div><div class="v">${sorted.length}</div></div>
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v">${fmtUsd(totalUsd)}</div></div>
+      <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(paidUsd)}</div></div>
+      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(paidSom)}</div></div>
+    </div>` : `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div>${t('salesCount')}: <b>${sorted.length}</b></div>
+    </div>`;
+  V().innerHTML = `
+    ${kpis}
+    <div class="card" style="padding:0;margin-top:12px">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+/* =================== EXPENSES =================== */
+const EXPENSE_TYPES = ['purchase','delivery','installation_pay','rent','utilities','salary','other'];
+const SELLER_HIDDEN_EXP = ['purchase','rent','utilities','salary'];
+const visibleExpenseTypes = () => isBoss() ? EXPENSE_TYPES : EXPENSE_TYPES.filter(t=>!SELLER_HIDDEN_EXP.includes(t));
+const isExpenseVisible = e => isBoss() || !SELLER_HIDDEN_EXP.includes(e.type);
+let expenseFilter = '';
+function viewExpenses(){
+  const all = [...state.expenses]
+    .filter(isExpenseVisible)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const totalUsd = all.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const byType = {};
+  visibleExpenseTypes().forEach(tp=>byType[tp]=0);
+  all.forEach(e=>{ byType[e.type] = (byType[e.type]||0) + (e.amountUsd||0) + somToUsd(e.amountSom||0);});
+  const kpis = Object.entries(byType).filter(([,v])=>v>0).map(([tp,v])=>{
+    const active = expenseFilter===tp ? 'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset' : '';
+    return `<div class="kpi" onclick="setExpenseFilter('${tp}')" style="cursor:pointer;${active}">
+      <div class="l"><span class="chip exp-${tp}">${t('expense_'+tp)}</span></div>
+      <div class="v" style="margin-top:6px">${fmtUsd(v)}</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(v))}</div>
+    </div>`;
+  }).join('');
+  const filterOpts = `<option value="">${t('allTypes')}</option>` + visibleExpenseTypes().map(tp=>`<option value="${tp}" ${expenseFilter===tp?'selected':''}>${t('expense_'+tp)}</option>`).join('');
+  V().innerHTML = `
+    <div class="row">
+      <div class="kpi" onclick="setExpenseFilter('')" style="cursor:pointer;${!expenseFilter?'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset':''}">
+        <div class="l">${t('totalExpenses')}</div>
+        <div class="v">${fmtUsd(totalUsd)}</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(totalUsd))}</div>
+      </div>
+      ${kpis}
+    </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="margin:0">${t('expType')}</label>
+        <select id="exp-filter" onchange="setExpenseFilter(this.value)" style="width:200px">${filterOpts}</select>
+      </div>
+      <button class="primary" onclick="openExpense()">${t('newExpense')}</button>
+    </div>
+    <div id="exp-list"></div>`;
+  renderExpensesList();
+}
+function setExpenseFilter(v){ expenseFilter = v; viewExpenses();}
+function renderExpensesList(){
+  const all = [...state.expenses]
+    .filter(isExpenseVisible)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const list = expenseFilter ? all.filter(e=>e.type===expenseFilter) : all;
+  const filterUsdSum = list.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const rows = list.map(e=>{
+    const totalUsdRow = (e.amountUsd||0)+somToUsd(e.amountSom||0);
+    return `<tr>
+      <td>${e.date}</td>
+      <td><span class="chip exp-${e.type}">${t('expense_'+e.type)}</span></td>
+      <td>${fmtUsd(e.amountUsd||0)}</td>
+      <td>${fmtSom(e.amountSom||0)}</td>
+      <td><b>${fmtUsd(totalUsdRow)}</b><br><small style="color:var(--muted)">${fmtSom(usdToSom(totalUsdRow))}</small></td>
+      <td>${escapeHtml(e.note||'')}</td>
+      <td style="text-align:right"><button class="danger" onclick="delExpense('${e.id}')">${t('del')}</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('exp-list').innerHTML = `
+    <div class="card" style="padding:8px 14px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center;border-radius:10px 10px 0 0">
+      <div>${t('expenseEntries')}: <b>${list.length}</b>${expenseFilter?` <span class="chip exp-${expenseFilter}">${t('expense_'+expenseFilter)}</span>`:''}</div>
+      <div><b>${fmtUsd(filterUsdSum)}</b> <span style="color:var(--muted)">· ${fmtSom(usdToSom(filterUsdSum))}</span></div>
+    </div>
+    <div class="card" style="padding:0;border-radius:0 0 10px 10px;border-top:none">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>USD</th><th>${t('paidSom')}</th><th>${t('totalUsd')}</th><th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openExpense(){
+  const typeOpts = visibleExpenseTypes().map(tp=>`<option value="${tp}">${t('expense_'+tp)}</option>`).join('');
+  const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  modal(`
+    <h3>${t('newExpense')}</h3>
+    <label>${t('date')}</label><input id="e-date" type="date" value="${today()}">
+    <label style="margin-top:10px">${t('expType')}</label><select id="e-type">${typeOpts}</select>
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>USD</label><input id="e-usd" type="number" step="0.01" value="0"></div>
+      <div class="col"><label>SOM</label><input id="e-som" type="number" step="1" value="0" oninput="updateSomHint('e-som','e-som-hint')"><small id="e-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+    </div>
+    <label style="margin-top:10px">${t('expSupOpt')}</label>
+    <select id="e-sup">${supOpts}</select>
+    <label style="margin-top:10px">${t('note')}</label>
+    <textarea id="e-note" rows="2"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveExpense()">${t('save')}</button>
+    </div>`);
+}
+function saveExpense(){
+  const amountUsd = Number(document.getElementById('e-usd').value)||0;
+  const amountSom = Number(document.getElementById('e-som').value)||0;
+  if(amountUsd<=0 && amountSom<=0){ alert(t('invalidAmount')); return;}
+  state.expenses.push({
+    id:uid(), date:document.getElementById('e-date').value||today(),
+    type:document.getElementById('e-type').value, amountUsd, amountSom,
+    supplierId: document.getElementById('e-sup').value,
+    note: document.getElementById('e-note').value.trim(),
+  });
+  save(); closeModal(); viewExpenses();
+}
+function delExpense(id){ if(!confirm(t('confirmDelete'))) return; state.expenses = state.expenses.filter(x=>x.id!==id); save(); viewExpenses();}
+
+/* =================== INSTALLERS =================== */
+function installerTotals(jobs, days, installerId){
+  const list = days===null ? jobs : jobs.filter(j=>isWithinDays(j.date, days));
+  let usd=0, som=0;
+  list.forEach(j=>{
+    jobInstallers(j).filter(a=>a.installerId===installerId).forEach(a=>{
+      usd += a.paidUsd||0;
+      som += a.paidSom||0;
+    });
+  });
+  return {usd, som, totalUsd: usd + somToUsd(som)};
+}
+function fmtInstallerPayCell(p){
+  if(p.usd>0 && p.som>0) return `<b>${fmtUsd(p.totalUsd)}</b><br><small style="color:var(--muted)">${fmtUsd(p.usd)} + ${fmtSom(p.som)}</small>`;
+  if(p.usd>0) return `<b>${fmtUsd(p.usd)}</b>`;
+  if(p.som>0) return `<b>${fmtSom(p.som)}</b><br><small style="color:var(--muted)">${fmtUsd(somToUsd(p.som))}</small>`;
+  return `<span style="color:var(--muted)">—</span>`;
+}
+function lastPaymentsFor(installerId, limit){
+  // Collect each pay event from each install (a job can have one row per installer)
+  const events = [];
+  state.installs.forEach(j=>{
+    jobInstallers(j).forEach(a=>{
+      if(a.installerId===installerId && ((a.paidUsd||0)>0 || (a.paidSom||0)>0)){
+        events.push({date:j.date, paidUsd:a.paidUsd||0, paidSom:a.paidSom||0});
+      }
+    });
+  });
+  return events.sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0, limit||5);
+}
+function viewInstallers(){
+  const boss = isBoss();
+  const rows = state.installers.map(i=>{
+    const jobs = state.installs.filter(j=>jobInstallers(j).some(a=>a.installerId===i.id));
+    if(boss){
+      const week = installerTotals(jobs, 7, i.id);
+      const month = installerTotals(jobs, 30, i.id);
+      const all = installerTotals(jobs, null, i.id);
+      return `<tr>
+        <td><b>${escapeHtml(i.name)}</b></td>
+        <td>${escapeHtml(i.phone||'')}</td>
+        <td>${jobs.length}</td>
+        <td>${fmtInstallerPayCell(week)}</td>
+        <td>${fmtInstallerPayCell(month)}</td>
+        <td>${fmtInstallerPayCell(all)}</td>
+        <td style="text-align:right">
+          <button onclick="openInstaller('${i.id}')">${t('edit')}</button>
+          <button class="danger" onclick="delInstaller('${i.id}')">${t('del')}</button>
+        </td>
+      </tr>`;
+    } else {
+      // Seller: hide totals, show recent payment events instead
+      const events = lastPaymentsFor(i.id, 5);
+      const eventsHtml = events.map(ev=>{
+        const parts = [];
+        if(ev.paidUsd>0) parts.push(fmtUsd(ev.paidUsd));
+        if(ev.paidSom>0) parts.push(fmtSom(ev.paidSom));
+        return `<div style="font-size:12px;padding:2px 0"><span style="color:var(--muted)">${ev.date}</span> &mdash; <b>${parts.join(' + ')||'—'}</b></div>`;
+      }).join('') || `<span style="color:var(--muted)">—</span>`;
+      return `<tr>
+        <td><b>${escapeHtml(i.name)}</b></td>
+        <td>${escapeHtml(i.phone||'')}</td>
+        <td>${jobs.length}</td>
+        <td>${eventsHtml}</td>
+        <td style="text-align:right">
+          <button onclick="openInstaller('${i.id}')">${t('edit')}</button>
+          <button class="danger" onclick="delInstaller('${i.id}')">${t('del')}</button>
+        </td>
+      </tr>`;
+    }
+  }).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div>${t('allInstallers')}: <b>${state.installers.length}</b></div>
+      <button class="primary" onclick="openInstaller()">${t('newInstaller')}</button>
+    </div>
+    <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>${t('name')}</th><th>${t('phone')}</th><th>${t('jobs')}</th>${boss?`<th>${t('paidWeek')}</th><th>${t('paidMonth')}</th><th>${t('paidAll')}</th>`:`<th>${t('recentPayments')}</th>`}<th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="${boss?7:5}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openInstaller(id){
+  const i = id ? state.installers.find(x=>x.id===id) : {name:'',phone:''};
+  modal(`
+    <h3>${id?t('editInstaller'):t('newInstaller')}</h3>
+    <label>${t('name')}</label><input id="i-name" value="${escapeAttr(i.name)}">
+    <label style="margin-top:10px">${t('phone')}</label><input id="i-phone" value="${escapeAttr(i.phone||'')}">
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveInstaller('${id||''}')">${t('save')}</button>
+    </div>`);
+}
+function saveInstaller(id){
+  const name = document.getElementById('i-name').value.trim();
+  if(!name){ alert(t('required')); return;}
+  const obj = {name, phone:document.getElementById('i-phone').value.trim()};
+  if(id) Object.assign(state.installers.find(x=>x.id===id), obj);
+  else state.installers.push({id:uid(),...obj});
+  save(); closeModal(); viewInstallers();
+}
+function delInstaller(id){ if(!confirm(t('confirmDelete'))) return; state.installers = state.installers.filter(x=>x.id!==id); save(); viewInstallers();}
+
+/* =================== INSTALL JOBS =================== */
+function viewInstalls(){
+  const sorted = [...state.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const rows = sorted.map(j=>{
+    const assigns = jobInstallers(j);
+    const installersHtml = assigns.map(a=>{
+      const inst = state.installers.find(i=>i.id===a.installerId);
+      const u = a.paidUsd||0, s = a.paidSom||0;
+      const payParts = [];
+      if(u>0) payParts.push(fmtUsd(u));
+      if(s>0) payParts.push(fmtSom(s));
+      const payStr = payParts.length ? ` <small style="color:var(--muted)">(${payParts.join(' + ')})</small>` : '';
+      return `<div><b>${inst?escapeHtml(inst.name):'?'}</b>${payStr}</div>`;
+    }).join('');
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const payTotal = installerPayUsd(j);
+    return `<tr>
+      <td>${j.date}</td>
+      <td>${installersHtml||'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="max-width:260px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
+      <td>${fmtUsd(j.amountUsd||0)}<br><small style="color:var(--muted)">${fmtSom(j.amountSom||0)}</small></td>
+      <td><b>${fmtUsd(payTotal)}</b></td>
+      <td>${escapeHtml(j.note||'')}</td>
+      <td style="text-align:right"><button class="danger" onclick="delInstall('${j.id}')">${t('del')}</button></td>
+    </tr>`;
+  }).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div>${t('totalJobs')}: <b>${state.installs.length}</b></div>
+      <button class="primary" onclick="openInstall()">${t('logJob')}</button>
+    </div>
+    <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('installersCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th><th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+let installDraft = [];
+let installerDraft = [];
+function openInstall(){
+  if(!state.installers.length){ alert(t('addSupplierFirst').replace('supplier','installer')); return;}
+  installDraft = [];
+  installerDraft = [{installerId: state.installers[0].id, paidUsd:0, paidSom:0}];
+  const hasProducts = state.products.length>0;
+  modal(`
+    <h3>${t('logJob')}</h3>
+    <div class="row">
+      <div class="col"><label>${t('date')}</label><input id="j-date" type="date" value="${today()}"></div>
+    </div>
+    <label style="margin-top:12px">${t('installersCol')}</label>
+    <div id="j-installers"></div>
+    <button onclick="addInstallerLine()" style="margin-top:6px">${t('addInstaller')}</button>
+    <label style="margin-top:12px">${t('items')}</label>
+    <div id="j-items"></div>
+    ${hasProducts?`
+      <div style="margin-top:10px;padding:10px;background:var(--panel2);border-radius:8px">
+        <input id="j-search" placeholder="${t('search')}" oninput="renderInstallPicker()" style="margin-bottom:8px">
+        <div id="j-picker" class="install-picker"></div>
+      </div>
+    `:`<div style="color:var(--muted);font-size:12px">${t('addProductFirst')}</div>`}
+    <div class="row" style="margin-top:12px">
+      <div class="col"><label>${t('chargedUsd')}</label><input id="j-usd" type="number" step="0.01" value="0"></div>
+      <div class="col"><label>${t('chargedSom')}</label><input id="j-som" type="number" step="1" value="0" oninput="updateSomHint('j-som','j-som-hint')"><small id="j-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+    </div>
+    <label style="margin-top:10px">${t('note')}</label>
+    <textarea id="j-note" rows="2"></textarea>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveInstall()">${t('save')}</button>
+    </div>`);
+  renderInstallLines();
+  renderInstallPicker();
+  renderInstallerLines();
+}
+function renderInstallerLines(){
+  const box = document.getElementById('j-installers'); if(!box) return;
+  const opts = state.installers.map(i=>`<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
+  box.innerHTML = installerDraft.map((a,idx)=>`
+    <div style="display:grid;grid-template-columns:1.5fr 90px 110px 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px">
+      <select onchange="updateInstallerLine(${idx},'installerId',this.value)">${opts.replace(`value="${a.installerId}"`,`value="${a.installerId}" selected`)}</select>
+      <input type="number" step="0.01" min="0" value="${a.paidUsd||0}" onchange="updateInstallerLine(${idx},'paidUsd',this.value)" placeholder="USD">
+      <input type="number" step="1" min="0" value="${a.paidSom||0}" onchange="updateInstallerLine(${idx},'paidSom',this.value)" placeholder="SOM">
+      <button class="danger" onclick="removeInstallerLine(${idx})" style="padding:4px 8px" ${installerDraft.length<=1?'disabled style="opacity:.4;padding:4px 8px"':''}>×</button>
+    </div>`).join('');
+}
+function addInstallerLine(){
+  if(!state.installers.length) return;
+  installerDraft.push({installerId: state.installers[0].id, paidUsd:0, paidSom:0});
+  renderInstallerLines();
+}
+function removeInstallerLine(idx){
+  if(installerDraft.length<=1) return;
+  installerDraft.splice(idx,1);
+  renderInstallerLines();
+}
+function updateInstallerLine(idx,field,val){
+  if(field==='paidUsd'||field==='paidSom') installerDraft[idx][field] = Number(val)||0;
+  else installerDraft[idx][field] = val;
+}
+function renderInstallLines(){
+  const box = document.getElementById('j-items'); if(!box) return;
+  if(!installDraft.length){
+    box.innerHTML = `<div style="color:var(--muted);padding:8px;background:var(--panel2);border-radius:6px;text-align:center;font-size:13px">${t('cartEmpty')}</div>`;
+    return;
+  }
+  const lines = installDraft.map((line,idx)=>{
+    const p = state.products.find(x=>x.id===line.productId);
+    if(!p) return '';
+    return `<div class="install-line">
+      <div><b>${escapeHtml(p.name)}</b><br><small style="color:var(--muted)">${fmtUsd(p.priceUsd)} · ${t('stockCol')}: ${p.stock}</small></div>
+      <div class="qty-ctrl" style="justify-content:center">
+        <button onclick="changeInstallQty(${idx},-1)">−</button>
+        <span style="min-width:24px;text-align:center"><b>${line.qty}</b></span>
+        <button onclick="changeInstallQty(${idx},1)">+</button>
+      </div>
+      <div style="text-align:right">${fmtUsd(p.priceUsd*line.qty)}</div>
+      <button class="danger" onclick="removeInstallLine(${idx})" style="padding:4px 8px">×</button>
+    </div>`;
+  }).join('');
+  const total = installDraft.reduce((s,l)=>{const p=state.products.find(x=>x.id===l.productId);return s+(p?p.priceUsd*l.qty:0);},0);
+  box.innerHTML = lines + `<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;font-weight:700"><span>${t('total')}</span><span>${fmtUsd(total)} <span style="color:var(--muted);font-weight:400;font-size:13px">${fmtSom(usdToSom(total))}</span></span></div>`;
+}
+function renderInstallPicker(){
+  const box = document.getElementById('j-picker'); if(!box) return;
+  const q = (document.getElementById('j-search')?.value||'').toLowerCase();
+  const list = state.products.filter(p=>p.stock>0 && (p.name+' '+(p.sku||'')).toLowerCase().includes(q));
+  if(!list.length){ box.innerHTML = `<div style="color:var(--muted);padding:10px;text-align:center;grid-column:1/-1">${t('noData')}</div>`; return;}
+  box.innerHTML = list.map(p=>{
+    const inDraft = installDraft.find(l=>l.productId===p.id);
+    const badge = inDraft ? `<span class="ip-badge">×${inDraft.qty}</span>` : '';
+    return `<div class="ip-card" onclick="addProductToInstall('${p.id}')">
+      ${badge}
+      <div style="font-weight:600;min-height:30px;padding-right:${inDraft?'30px':'0'}">${escapeHtml(p.name)}</div>
+      <div style="color:var(--accent);font-weight:700">${fmtUsd(p.priceUsd)}</div>
+      <div style="color:var(--muted);font-size:11px">${t('stockCol')}: ${p.stock}</div>
+    </div>`;
+  }).join('');
+}
+function addProductToInstall(pid){
+  const p = state.products.find(x=>x.id===pid); if(!p) return;
+  const existing = installDraft.find(l=>l.productId===pid);
+  if(existing){
+    if(existing.qty + 1 > p.stock){ alert(t('notEnoughStock')); return;}
+    existing.qty++;
+  } else {
+    installDraft.push({productId:pid, qty:1});
+  }
+  renderInstallLines(); renderInstallPicker();
+}
+function changeInstallQty(idx, d){
+  const line = installDraft[idx]; if(!line) return;
+  const p = state.products.find(x=>x.id===line.productId);
+  const next = line.qty + d;
+  if(next<=0){ installDraft.splice(idx,1); renderInstallLines(); renderInstallPicker(); return;}
+  if(next > p.stock){ alert(t('notEnoughStock')); return;}
+  line.qty = next;
+  renderInstallLines(); renderInstallPicker();
+}
+function removeInstallLine(idx){ installDraft.splice(idx,1); renderInstallLines(); renderInstallPicker();}
+function saveInstall(){
+  const installerAssignments = installerDraft
+    .filter(a => a.installerId)
+    .map(a => ({installerId:a.installerId, paidUsd:Number(a.paidUsd)||0, paidSom:Number(a.paidSom)||0}));
+  if(!installerAssignments.length){ alert(t('addSupplierFirst').replace('supplier','installer')); return;}
+  const items = installDraft.filter(l=>l.productId && l.qty>0).map(l=>{
+    const p = state.products.find(x=>x.id===l.productId);
+    return {productId:p.id, name:p.name, qty:l.qty, priceUsd:p.priceUsd};
+  });
+  for(const it of items){
+    const p = state.products.find(x=>x.id===it.productId);
+    if(it.qty > p.stock){ alert(`${t('notEnoughStock')}: ${p.name} (${p.stock})`); return;}
+  }
+  const job = {
+    id:uid(), date: document.getElementById('j-date').value||today(),
+    installers: installerAssignments,
+    items,
+    amountUsd: Number(document.getElementById('j-usd').value)||0,
+    amountSom: Number(document.getElementById('j-som').value)||0,
+    note: document.getElementById('j-note').value.trim(),
+  };
+  state.installs.push(job);
+  items.forEach(it=>{ const p = state.products.find(x=>x.id===it.productId); if(p) p.stock = Math.max(0, p.stock - it.qty);});
+  // Create one expense entry per installer that received pay
+  installerAssignments.forEach(a => {
+    if(a.paidUsd>0 || a.paidSom>0){
+      const inst = state.installers.find(i=>i.id===a.installerId);
+      state.expenses.push({
+        id:uid(), date:job.date, type:'installation_pay',
+        amountUsd:a.paidUsd, amountSom:a.paidSom,
+        installerId:a.installerId,
+        note:`${t('paidToInstaller')}: ${inst?inst.name:''}`
+      });
+    }
+  });
+  save(); closeModal(); viewInstalls();
+}
+function delInstall(id){
+  if(!confirm(t('confirmDelete'))) return;
+  const job = state.installs.find(x=>x.id===id);
+  if(job && job.items){ job.items.forEach(it=>{ const p = state.products.find(x=>x.id===it.productId); if(p) p.stock += it.qty;});}
+  state.installs = state.installs.filter(x=>x.id!==id); save(); viewInstalls();
+}
+
+/* =================== DASHBOARD =================== */
+function saleCOGS(sale){
+  return sale.items.reduce((s,it)=>{
+    const p = state.products.find(x=>x.id===it.productId);
+    return s + (p?.costUsd||0) * it.qty;
+  },0);
+}
+function viewDashboard(){
+  const totalRev = state.sales.reduce((s,x)=>s+x.totalUsd,0);
+  const totalExp = state.expenses.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const purchExp = state.expenses.filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const opExp = totalExp - purchExp;
+  const cogs = state.sales.reduce((s,x)=>s+saleCOGS(x),0);
+  const profit = totalRev - cogs - opExp;
+  const weekRev = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+x.totalUsd,0);
+  const monthRev = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+x.totalUsd,0);
+  const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const weekCogs = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+saleCOGS(x),0);
+  const monthCogs = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+saleCOGS(x),0);
+  const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const weekProfit = weekRev - weekCogs - weekOpExp;
+  const monthProfit = monthRev - monthCogs - monthOpExp;
+  const lowStock = state.products.filter(p=>p.stock<=(p.minStock||0));
+  const totalUnits = state.products.reduce((s,p)=>s+p.stock,0);
+  const recent = [...state.sales].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const recentJobs = [...state.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
+  const recentStock = [...(state.stockLogs||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+  const recentDef = [...(state.defectives||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+  const totalDefQty = (state.defectives||[]).reduce((s,d)=>s+(d.qty||0),0);
+  V().innerHTML = `
+    <div class="row">
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v" style="color:var(--pos)">${fmtUsd(totalRev)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(totalRev))}</div></div>
+      <div class="kpi" title="${t('cogsHint')}"><div class="l">${t('cogs')}</div><div class="v" style="color:var(--hi)">${fmtUsd(cogs)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(cogs))}</div></div>
+      <div class="kpi"><div class="l">${t('opExpenses')}</div><div class="v" style="color:var(--neg)">${fmtUsd(opExp)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(opExp))}</div></div>
+      <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${profit>=0?'#7ce38b':'#ffb4b4'}">${fmtUsd(profit)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(profit))}</div></div>
+      <div class="kpi"><div class="l">${t('inventoryValue')}</div><div class="v">${fmtUsd(inventoryValue())}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(inventoryValue()))}</div></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div class="kpi"><div class="l">${t('thisWeekRE')}</div><div class="v" style="font-size:16px">${fmtUsd(weekRev)} <span style="color:var(--muted)">/ ${fmtUsd(weekExp)}</span></div><div style="color:${weekProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(weekProfit)}</div></div>
+      <div class="kpi"><div class="l">${t('thisMonthRE')}</div><div class="v" style="font-size:16px">${fmtUsd(monthRev)} <span style="color:var(--muted)">/ ${fmtUsd(monthExp)}</span></div><div style="color:${monthProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(monthProfit)}</div></div>
+      <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(state.sales.reduce((s,x)=>s+x.paidUsd,0))}</div></div>
+      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+x.paidSom,0))}</div></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div class="kpi"><div class="l">${t('stockUnits')}</div><div class="v">${totalUnits}</div></div>
+      <div class="kpi"><div class="l">${t('productTypes')}</div><div class="v">${state.products.length}</div></div>
+      <div class="kpi"><div class="l">${t('suppliersKpi')}</div><div class="v">${state.suppliers.length}</div></div>
+      <div class="kpi"><div class="l">${t('installersKpi')}</div><div class="v">${state.installers.length}</div></div>
+    </div>
+    ${lowStock.length?`<div class="card" style="margin-top:16px;border-color:#5a2a2e">
+      <b style="color:var(--neg)">⚠ ${t('lowStock')} (${lowStock.length})</b>
+      <div style="margin-top:8px">${lowStock.map(p=>`<span class="chip bad">${escapeHtml(p.name)}: ${p.stock}</span>`).join(' ')}</div>
+    </div>`:''}
+    <div class="card" style="margin-top:16px">
+      <b>${t('recentSales')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')} / ${t('paidSom')}</th></tr></thead>
+        <tbody>
+          ${recent.map(s=>{
+            const u = s.paidUsd||0, so = s.paidSom||0;
+            let paidHtml = '';
+            if(u>0 && so>0) paidHtml = `<span class="chip warn">${fmtUsd(u)} + ${fmtSom(so)}</span>`;
+            else if(u>0) paidHtml = `<span class="chip good">${fmtUsd(u)}</span>`;
+            else if(so>0) paidHtml = `<span class="chip exp-purchase">${fmtSom(so)}</span>`;
+            else paidHtml = `<span style="color:var(--muted)">—</span>`;
+            return `<tr>
+              <td>${new Date(s.date).toLocaleString()}</td>
+              <td>${s.items.map(i=>escapeHtml(i.name)+'×'+i.qty).join(', ')}</td>
+              <td>${fmtUsd(s.totalUsd)}</td>
+              <td>${paidHtml}</td>
+            </tr>`;
+          }).join('') || `<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px">${t('noData')}</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <b>${t('installs')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('installersCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th></tr></thead>
+        <tbody>
+          ${recentJobs.map(j=>{
+            const names = jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');
+            const charged = (j.amountUsd||0) + somToUsd(j.amountSom||0);
+            const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+            return `<tr>
+              <td>${j.date}</td>
+              <td><b>${names||'—'}</b></td>
+              <td style="max-width:240px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
+              <td>${fmtUsd(charged)}</td>
+              <td style="color:var(--neg)">${fmtUsd(installerPayUsd(j))}</td>
+            </tr>`;
+          }).join('') || `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">${t('noData')}</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px;border-color:${recentDef.length?'var(--danger-border)':'var(--line)'}">
+      <b>${t('recentDefectives')}</b> <span class="chip warn" style="margin-left:6px">${totalDefQty} ${t('defectiveCount')}</span>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('name')}</th><th>${t('qty')}</th><th>${t('reason')}</th><th>${t('reportedBy')}</th></tr></thead>
+        <tbody>
+          ${recentDef.map(d=>`<tr>
+            <td>${new Date(d.date).toLocaleString()}</td>
+            <td><b>${escapeHtml(d.productName)}</b></td>
+            <td><span class="chip warn">${d.qty}</span></td>
+            <td style="font-size:12px">${escapeHtml(d.reason||'')}</td>
+            <td><span class="chip ${d.role==='seller'?'warn':''}">${t(d.role||'user')}</span></td>
+          </tr>`).join('') || `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">${t('noDefectives')}</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:16px;border-color:${recentStock.some(l=>l.role==='seller')?'var(--danger-border)':'var(--line)'}">
+      <b>${t('stockChanges')}</b> <span style="color:var(--muted);font-size:12px">— ${t('stockChangeHint')}</span>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('name')}</th><th>${t('stockCol')}</th><th>By</th><th>${t('note')}</th></tr></thead>
+        <tbody>
+          ${recentStock.map(l=>{
+            const sign = l.delta>0?'+':'';
+            const dColor = l.delta>0?'var(--pos)':'var(--neg)';
+            const byChip = l.role==='seller'
+              ? `<span class="chip warn">${t('bySeller')}</span>`
+              : `<span class="chip">${t('byBoss')}</span>`;
+            return `<tr>
+              <td>${new Date(l.date).toLocaleString()}</td>
+              <td>${escapeHtml(l.productName)}</td>
+              <td>${l.before} → <b>${l.after}</b> <span style="color:${dColor}">(${sign}${l.delta})</span></td>
+              <td>${byChip}</td>
+              <td style="color:var(--muted);font-size:12px">${escapeHtml(l.reason||'')}</td>
+            </tr>`;
+          }).join('') || `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">${t('noStockChanges')}</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/* =================== SETTINGS =================== */
+/* =================== ARCHIVE / REPORT =================== */
+let archiveRange = {from:'', to:''};
+function setArchivePreset(preset){
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  if(preset==='7'){ const d=new Date(now); d.setDate(d.getDate()-7); archiveRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='30'){ const d=new Date(now); d.setDate(d.getDate()-30); archiveRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='month'){ const d=new Date(now.getFullYear(), now.getMonth(), 1); archiveRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='all'){ archiveRange={from:'', to:''};}
+  viewArchive();
+}
+function readArchiveInputs(){
+  const f = document.getElementById('arc-from')?.value || '';
+  const tt = document.getElementById('arc-to')?.value || '';
+  archiveRange = {from:f, to:tt};
+  renderArchiveBody();
+}
+function inRange(dateStr){
+  if(!dateStr) return false;
+  const d = dateStr.slice(0,10);
+  if(archiveRange.from && d < archiveRange.from) return false;
+  if(archiveRange.to && d > archiveRange.to) return false;
+  return true;
+}
+function archiveData(){
+  const sales = state.sales.filter(s=>inRange(s.date));
+  const installs = state.installs.filter(j=>inRange(j.date));
+  const expenses = state.expenses.filter(e=>inRange(e.date));
+  const purchases = state.purchases.filter(p=>inRange(p.date));
+  const totalRev = sales.reduce((s,x)=>s+x.totalUsd,0);
+  const cogs = sales.reduce((s,x)=>s+saleCOGS(x),0);
+  const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const profit = totalRev - cogs - opExp;
+  const installerPayTotal = installs.reduce((s,j)=>s+installerPayUsd(j),0);
+  const purchaseTotal = purchases.reduce((s,p)=>s+(p.totalUsd||0),0);
+  // products sold aggregate
+  const soldMap = {};
+  sales.forEach(s=>s.items.forEach(it=>{
+    if(!soldMap[it.productId]) soldMap[it.productId] = {name:it.name, qty:0, revenue:0};
+    soldMap[it.productId].qty += it.qty;
+    soldMap[it.productId].revenue += it.priceUsd * it.qty;
+  }));
+  const productsSold = Object.values(soldMap).sort((a,b)=>b.qty-a.qty);
+  return {sales, installs, expenses, purchases, totalRev, cogs, opExp, profit, installerPayTotal, purchaseTotal, productsSold};
+}
+function viewArchive(){
+  if(!archiveRange.from && !archiveRange.to){
+    setArchivePreset('30'); return;
+  }
+  V().innerHTML = `
+    <div class="card">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <b>${t('period')}:</b>
+        <button onclick="setArchivePreset('7')">${t('last7')}</button>
+        <button onclick="setArchivePreset('30')">${t('last30')}</button>
+        <button onclick="setArchivePreset('month')">${t('thisMonthRange')}</button>
+        <button onclick="setArchivePreset('all')">${t('allTime')}</button>
+      </div>
+      <div class="row">
+        <div class="col"><label>${t('from')}</label><input type="date" id="arc-from" value="${archiveRange.from}" onchange="readArchiveInputs()"></div>
+        <div class="col"><label>${t('to')}</label><input type="date" id="arc-to" value="${archiveRange.to}" onchange="readArchiveInputs()"></div>
+        <div class="col" style="display:flex;align-items:flex-end;gap:6px">
+          <button class="primary" onclick="downloadArchiveHtml()">${t('downloadHtml')}</button>
+          <button onclick="window.print()">${t('printReport')}</button>
+        </div>
+      </div>
+    </div>
+    <div id="arc-body"></div>`;
+  renderArchiveBody();
+}
+function renderArchiveBody(){
+  const d = archiveData();
+  const box = document.getElementById('arc-body'); if(!box) return;
+  const salesRows = [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>`<tr>
+    <td>${new Date(s.date).toLocaleString()}</td>
+    <td>${s.items.map(i=>escapeHtml(i.name)+'×'+i.qty).join(', ')}</td>
+    <td>${fmtUsd(s.totalUsd)}</td>
+    <td>${fmtUsd(s.paidUsd)}</td>
+    <td>${fmtSom(s.paidSom)}</td>
+  </tr>`).join('');
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{
+    const names = jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    return `<tr>
+      <td>${j.date}</td>
+      <td><b>${names||'?'}</b></td>
+      <td style="font-size:12px">${itemsStr||'—'}</td>
+      <td>${fmtUsd(j.amountUsd||0)} / ${fmtSom(j.amountSom||0)}</td>
+      <td style="color:var(--neg)">${fmtUsd(installerPayUsd(j))}</td>
+    </tr>`;
+  }).join('');
+  const productRows = d.productsSold.map(p=>`<tr>
+    <td><b>${escapeHtml(p.name)}</b></td>
+    <td>${p.qty}</td>
+    <td>${fmtUsd(p.revenue)}</td>
+  </tr>`).join('');
+  box.innerHTML = `
+    <div class="row" style="margin-top:12px">
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v" style="color:var(--pos)">${fmtUsd(d.totalRev)}</div></div>
+      <div class="kpi"><div class="l">${t('cogs')}</div><div class="v" style="color:var(--hi)">${fmtUsd(d.cogs)}</div></div>
+      <div class="kpi"><div class="l">${t('opExpenses')}</div><div class="v" style="color:var(--neg)">${fmtUsd(d.opExp)}</div></div>
+      <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${d.profit>=0?'var(--pos)':'var(--neg)'}">${fmtUsd(d.profit)}</div></div>
+    </div>
+    <div class="row">
+      <div class="kpi"><div class="l">${t('salesCount')}</div><div class="v">${d.sales.length}</div></div>
+      <div class="kpi"><div class="l">${t('installs')}</div><div class="v">${d.installs.length}</div></div>
+      <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div class="v" style="color:var(--neg)">${fmtUsd(d.installerPayTotal)}</div></div>
+      <div class="kpi"><div class="l">${t('totalPurchases')}</div><div class="v">${fmtUsd(d.purchaseTotal)}</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>${t('productsSold')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('name')}</th><th>${t('totalQty')}</th><th>${t('totalRevenue')}</th></tr></thead>
+        <tbody>${productRows||`<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">${t('noData')}</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>${t('sales')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th></tr></thead>
+        <tbody>${salesRows||`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">${t('noData')}</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <b>${t('installersSection')}</b>
+      <table style="margin-top:8px">
+        <thead><tr><th>${t('date')}</th><th>${t('installerCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th></tr></thead>
+        <tbody>${installRows||`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">${t('noData')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+}
+function downloadArchiveHtml(){
+  const d = archiveData();
+  const css = `body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;color:#1a2230;margin:24px;font-size:13px}
+    h1{margin:0 0 4px 0}h2{margin:24px 0 8px 0;border-bottom:2px solid #2563eb;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-top:6px}th,td{padding:6px 8px;border-bottom:1px solid #e1e7ee;text-align:left}
+    th{background:#f0f3f7;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#566678}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+    .kpi{padding:12px;border:1px solid #e1e7ee;border-radius:8px}
+    .kpi .l{color:#566678;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .kpi .v{font-size:20px;font-weight:700;margin-top:4px}
+    .pos{color:#1f7a3a}.neg{color:#c0322c}.hi{color:#a06808}.muted{color:#566678;font-size:11px}`;
+  const range = (archiveRange.from||'—') + ' → ' + (archiveRange.to||'—');
+  const productRows = d.productsSold.map(p=>`<tr><td><b>${escapeHtml(p.name)}</b></td><td>${p.qty}</td><td>${fmtUsd(p.revenue)}</td></tr>`).join('');
+  const salesRows = [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>`<tr><td>${new Date(s.date).toLocaleString()}</td><td>${s.items.map(i=>escapeHtml(i.name)+'×'+i.qty).join(', ')}</td><td>${fmtUsd(s.totalUsd)}</td><td>${fmtUsd(s.paidUsd)}</td><td>${fmtSom(s.paidSom)}</td></tr>`).join('');
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td><b>${names||'?'}</b></td><td>${itemsStr||'—'}</td><td>${fmtUsd(j.amountUsd||0)} / ${fmtSom(j.amountSom||0)}</td><td class="neg">${fmtUsd(installerPayUsd(j))}</td></tr>`;}).join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gazmetprod report ${range}</title><style>${css}</style></head><body>
+    <h1>Gazmetprod — ${t('archive')}</h1>
+    <div class="muted">${t('period')}: ${range} · ${t('generated')}: ${new Date().toLocaleString()}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v pos">${fmtUsd(d.totalRev)}</div></div>
+      <div class="kpi"><div class="l">${t('cogs')}</div><div class="v hi">${fmtUsd(d.cogs)}</div></div>
+      <div class="kpi"><div class="l">${t('opExpenses')}</div><div class="v neg">${fmtUsd(d.opExp)}</div></div>
+      <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v ${d.profit>=0?'pos':'neg'}">${fmtUsd(d.profit)}</div></div>
+      <div class="kpi"><div class="l">${t('salesCount')}</div><div class="v">${d.sales.length}</div></div>
+      <div class="kpi"><div class="l">${t('installs')}</div><div class="v">${d.installs.length}</div></div>
+      <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div class="v neg">${fmtUsd(d.installerPayTotal)}</div></div>
+      <div class="kpi"><div class="l">${t('totalPurchases')}</div><div class="v">${fmtUsd(d.purchaseTotal)}</div></div>
+    </div>
+    <h2>${t('productsSold')}</h2>
+    <table><thead><tr><th>${t('name')}</th><th>${t('totalQty')}</th><th>${t('totalRevenue')}</th></tr></thead><tbody>${productRows||'<tr><td colspan="3" class="muted">—</td></tr>'}</tbody></table>
+    <h2>${t('sales')}</h2>
+    <table><thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th></tr></thead><tbody>${salesRows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table>
+    <h2>${t('installersSection')}</h2>
+    <table><thead><tr><th>${t('date')}</th><th>${t('installerCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th></tr></thead><tbody>${installRows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table>
+    </body></html>`;
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gazmetprod-archive_${archiveRange.from||'all'}_to_${archiveRange.to||'all'}.html`;
+  a.click();
+}
+
+/* =================== HELP / GUIDE =================== */
+const HELP_CONTENT = {
+  en: {
+    intro: `<b>Gazmetprod Sklad</b> is a warehouse system for car gas equipment.
+      Boss controls finances and reports. Seller handles daily operations: sales, purchases, install jobs.
+      Data syncs between all devices when the backend server is running.`,
+    seller: [
+      {h:'🔑 Login', body:`Username <b>seller</b>, password <b>Work</b> (any case). Click 👁 to see what you typed.`},
+      {h:'💰 Sell (POS)', body:`Click product cards to add to cart. <b>You can change the price per item</b> if customer pays more or less than the list price (small chip shows +/- difference). Customer pays in <b>USD, SOM, or both at once</b> — fill both inputs and the system shows change or how much is missing. Click <b>Complete Sale</b>.`},
+      {h:'📦 Products', body:`Add new products with name, price, stock. <b>You don't see the cost price</b> — boss sets that. Click <b>Defective</b> on a product to mark broken units (qty + reason); they're removed from stock and boss is notified.`},
+      {h:'🚚 Purchases', body:`When supplier delivers goods, log it here. Pick supplier, click <b>+ Add item</b>, choose product + qty. Stock auto-increases. <b>You don't enter cost</b> — boss has set it on the product. Boss sees the total automatically.`},
+      {h:'🔧 Install Jobs', body:`Log a car installation. Pick installer + items used (search box, click cards to add). Enter <b>Charged</b> (what customer paid, USD + SOM ok), and <b>Paid to installer</b> (USD + SOM, varies per job). Stock auto-deducts.`},
+      {h:'💸 Expenses', body:`Add operating costs: delivery, salary, utilities, rent, etc. <b>Purchase entries are hidden from you</b> (boss tracks those). Use the colored chips to filter by type.`},
+      {h:'⚠ Defectives', body:`Tab shows all reported broken items. Use this when goods arrive damaged or break in storage. Always include a <b>reason</b>.`},
+      {h:'👥 Installers', body:`Add the people who install gas equipment. Their weekly / monthly / all-time pay totals appear automatically when you log install jobs.`},
+    ],
+    boss: [
+      {h:'🔑 Login', body:`Username <b>boss</b>, password <b>Million</b> (any case).`},
+      {h:'📊 Dashboard', body:`<b>Revenue</b> = total customers paid you. <b>COGS</b> (Cost of Goods Sold) = cost of items actually sold. <b>Operating Expenses</b> = rent, salary, delivery, etc. <b>Net Profit = Revenue − COGS − Op. Expenses</b>. Cards show both USD and SOM. Recent activity shows last sales, install jobs, defective reports, and stock edits made by seller.`},
+      {h:'💵 Setting cost prices', body:`<b>Critical:</b> for COGS / profit math to work, set the <b>Cost price</b> on every product. Products → Edit → Cost price field. When you change it, future purchases use the new rate; past purchase records keep their original cost.`},
+      {h:'🚚 Purchases', body:`See full purchase history with cost totals. Filter by supplier. Each purchase auto-creates a 'purchase' expense entry.`},
+      {h:'💸 Expenses', body:`See ALL expenses including purchases. Click any colored type chip or KPI card to filter the list. Total of filtered shown at top.`},
+      {h:'👥 Installers & Install Jobs', body:`Track who installed what and how much they were paid. Pay can be USD, SOM, or both — system converts to total automatically.`},
+      {h:'⚠ Defectives & Stock changes', body:`Dashboard highlights any defective reports or manual stock edits made by the seller. Investigate if numbers look suspicious.`},
+      {h:'📁 Archive', body:`Pick a date range (last 7 / 30 days, this month, custom) to see <b>full report</b>: revenue, COGS, profit, sales list, install jobs list, products sold breakdown. Download as HTML file or print as PDF.`},
+      {h:'⚙ Settings', body:`Change USD/SOM exchange rate (used everywhere). Export full backup as JSON. Import to restore. Theme switcher (light/dark) is at the bottom of the sidebar.`},
+    ],
+    flow: [
+      {h:'Morning', body:`Boss: check Dashboard, look for low stock and any defective/stock alerts. Seller: open POS.`},
+      {h:'Customer arrives to buy', body:`Seller: click products → set price if needed → enter payment USD/SOM → Complete Sale.`},
+      {h:'Customer brings car for install', body:`Seller: open Install Jobs → log job with installer + items used + charged + installer pay.`},
+      {h:'Supplier delivers goods', body:`Seller: open Purchases → pick supplier → add items + qty → save. Stock goes up.`},
+      {h:'Damaged item found', body:`Seller: open Products → click Defective on the item → enter qty + reason. Stock removed; boss is notified on dashboard.`},
+      {h:'End of week / month', body:`Boss: open Archive → pick period → download HTML report for records.`},
+    ],
+  },
+  ru: {
+    intro: `<b>Gazmetprod Sklad</b> — система склада для автогазового оборудования. Босс контролирует финансы и отчёты. Продавец работает с продажами, закупками, установками. Данные синхронизируются между устройствами при запущенном сервере.`,
+    seller: [
+      {h:'🔑 Вход', body:`Логин <b>seller</b>, пароль <b>Work</b> (регистр не важен). Нажмите 👁 чтобы увидеть пароль.`},
+      {h:'💰 Касса', body:`Кликайте по карточкам товаров чтобы добавить в чек. <b>Цену каждого товара можно изменить</b> если клиент платит больше или меньше — чип покажет +/- разницу. Клиент платит в <b>USD, СОМ или сразу в обоих</b> — заполните оба поля, система покажет сдачу или сколько не хватает. <b>Завершить продажу</b>.`},
+      {h:'📦 Товары', body:`Добавляйте товары: название, цена, остаток. <b>Закупочную цену вы не видите</b> — её ставит босс. Кнопка <b>Брак</b> у товара — отметить сломанные штуки (кол-во + причина); они уйдут со склада, босс увидит.`},
+      {h:'🚚 Закупки', body:`Когда поставщик привёз товар — оформите здесь. Выберите поставщика, нажмите <b>+ Добавить</b>, укажите товар и количество. Склад пополнится. <b>Цену вы не вводите</b> — она уже задана боссом. Сумму босс увидит сам.`},
+      {h:'🔧 Установки', body:`Запись об установке ГБО. Выберите установщика и товары (поиск + клик по карточкам). Введите <b>Получено</b> от клиента (USD + СОМ можно вместе) и <b>Выплата установщику</b> (USD + СОМ, разная каждый раз). Товары спишутся со склада.`},
+      {h:'💸 Расходы', body:`Операционные расходы: доставка, зарплата, аренда и т.д. <b>Закупки скрыты</b> от вас. Цветные чипы — фильтр по типу.`},
+      {h:'⚠ Брак', body:`Вкладка показывает весь отмеченный брак. Используйте когда товар приходит сломанным или ломается на складе. Всегда указывайте <b>причину</b>.`},
+      {h:'👥 Установщики', body:`Добавьте мастеров. Их недельные / месячные / общие выплаты считаются автоматически на основе установок.`},
+    ],
+    boss: [
+      {h:'🔑 Вход', body:`Логин <b>boss</b>, пароль <b>Million</b> (регистр не важен).`},
+      {h:'📊 Панель', body:`<b>Выручка</b> = сколько заплатили клиенты. <b>Себ.</b> (себестоимость продаж) = закупочная цена ПРОДАННЫХ товаров. <b>Операционные расходы</b> = аренда, зарплата, доставка и т.д. <b>Чистая прибыль = Выручка − Себ. − Опер. расходы</b>. Внизу — последние продажи, установки, брак и ручные правки остатков продавцом.`},
+      {h:'💵 Закупочные цены', body:`<b>Важно:</b> чтобы прибыль считалась правильно, ставьте <b>Закупочную цену</b> у каждого товара. Товары → Редактировать → Закупочная цена. Если изменить — новые закупки идут по новой цене, прошлые сохраняют старую.`},
+      {h:'🚚 Закупки', body:`Полная история закупок с суммами. Фильтр по поставщику. Каждая закупка автоматически создаёт запись расхода типа 'закупка'.`},
+      {h:'💸 Расходы', body:`Видны ВСЕ расходы, включая закупки. Кликайте по цветным типам или карточкам сверху чтобы отфильтровать. Сумма по фильтру — сверху списка.`},
+      {h:'👥 Установщики', body:`Видно кто что устанавливал и сколько получил. Выплата может быть USD, СОМ или вместе — система суммирует по курсу.`},
+      {h:'⚠ Брак и изменения остатков', body:`Панель подсвечивает брак и ручные правки остатков от продавца. Проверяйте если цифры выглядят странно.`},
+      {h:'📁 Архив', body:`Выберите период (7/30 дней, этот месяц, свой) — увидите <b>полный отчёт</b>: выручка, себ., прибыль, продажи, установки, разбивка по товарам. Скачайте как HTML или распечатайте в PDF.`},
+      {h:'⚙ Настройки', body:`Курс USD/СОМ (используется везде). Экспорт всей базы в JSON. Восстановление из JSON. Тема (светлая/тёмная) — внизу левого меню.`},
+    ],
+    flow: [
+      {h:'Утро', body:`Босс: посмотрите Панель, проверьте низкий остаток и сигналы по браку/правкам. Продавец: откройте Кассу.`},
+      {h:'Клиент покупает', body:`Продавец: тапайте товары → измените цену если надо → введите оплату USD/СОМ → Завершить продажу.`},
+      {h:'Клиент привёз авто на установку', body:`Продавец: Установки → запишите установщика + товары + получено + выплата мастеру.`},
+      {h:'Поставщик привёз товар', body:`Продавец: Закупки → поставщик → товары + кол-во → сохранить. Склад пополнится.`},
+      {h:'Найден брак', body:`Продавец: Товары → Брак на нужном → кол-во + причина. Спишется со склада; босс увидит на Панели.`},
+      {h:'Конец недели / месяца', body:`Босс: Архив → период → скачайте HTML-отчёт для архива.`},
+    ],
+  },
+  uz: {
+    intro: `<b>Gazmetprod Sklad</b> — avtomobil gaz uskunalari ombor tizimi. Boshliq moliyani va hisobotlarni boshqaradi. Sotuvchi sotuv, xarid, o'rnatish bilan ishlaydi. Server ishlasa, ma'lumot barcha qurilmalarda sinxronlanadi.`,
+    seller: [
+      {h:'🔑 Kirish', body:`Login <b>seller</b>, parol <b>Work</b> (registr ahamiyatsiz). 👁 tugma — parolni ko'rish.`},
+      {h:"💰 Kassa", body:`Mahsulot kartalariga bosing. <b>Har bir mahsulot narxini o'zgartirish mumkin</b> — chip +/- farqni ko'rsatadi. Mijoz <b>USD, SOM yoki ikkalasi bilan</b> to'laydi — ikkala maydonni to'ldiring, qaytim yoki yetishmayotgan summa ko'rsatiladi. <b>Sotuvni yakunlash</b>.`},
+      {h:'📦 Mahsulotlar', body:`Yangi mahsulot qo'shing. <b>Xarid narxini ko'rmaysiz</b> — uni boshliq belgilaydi. <b>Brak</b> tugmasi — buzilgan donalarni belgilash (miqdor + sabab); qoldiqdan ayriladi, boshliq ko'radi.`},
+      {h:'🚚 Xaridlar', body:`Yetkazib beruvchi tovar olib kelganda — bu yerda yozing. Yetkazuvchini tanlang, <b>+ Qo'shish</b> tugmasi, mahsulot va miqdor. Qoldiq oshadi. <b>Narxni kiritmaysiz</b> — boshliq belgilab qo'ygan.`},
+      {h:"🔧 O'rnatishlar", body:`Avto ustiga GBOʻrnatish. Ustani va ishlatilgan mahsulotlarni tanlang. <b>Olindi</b> (mijozdan, USD+SOM mumkin), <b>Ustaga to'landi</b> (USD+SOM, har safar har xil) kiriting. Mahsulotlar omborrdan ayriladi.`},
+      {h:'💸 Xarajatlar', body:`Operatsion xarajatlar: yetkazish, oylik, ijara va h.k. <b>Xaridlar sizga ko'rinmaydi</b>. Rangli chiplar — turi bo'yicha filtr.`},
+      {h:'⚠ Brak', body:`Tab barcha braklarni ko'rsatadi. Tovar buzilgan kelganda yoki omborda buzilganda foydalaning. <b>Sababini</b> doim yozing.`},
+      {h:"👥 Ustalar", body:"Ustalarni qo'shing. Haftalik / oylik / umumiy to'lov o'rnatishlar bo'yicha avtomatik hisoblanadi."},
+    ],
+    boss: [
+      {h:'🔑 Kirish', body:`Login <b>boss</b>, parol <b>Million</b> (registr ahamiyatsiz).`},
+      {h:'📊 Boshqaruv paneli', body:`<b>Daromad</b> = mijozlar to'lagani. <b>Tannarx</b> (sotilgan tovar tannarxi) = sotilgan mahsulotning xarid narxi. <b>Operatsion xarajatlar</b> = ijara, oylik, yetkazish v.b. <b>Sof foyda = Daromad − Tannarx − Op.xarajat</b>. Pastda — so'nggi sotuvlar, o'rnatishlar, brak va sotuvchi qildiqda qilgan o'zgarishlar.`},
+      {h:'💵 Xarid narxlari', body:`<b>Muhim:</b> foyda to'g'ri hisoblanishi uchun har bir mahsulotga <b>Xarid narxini</b> belgilang. Mahsulotlar → Tahrir → Xarid narxi. O'zgartirsangiz — yangi xaridlar yangi narxda, eskilari saqlanadi.`},
+      {h:"🚚 Xaridlar", body:"To'liq tarix summalar bilan. Yetkazuvchi bo'yicha filtr. Har bir xarid avtomatik 'xarid' xarajat yozuvi yaratadi."},
+      {h:"💸 Xarajatlar", body:"BARCHA xarajatlar (xaridlar ham). Rangli chiplar yoki yuqoridagi kartalar — filtr. Filtr summasi yuqorida."},
+      {h:'👥 Ustalar', body:`Kim nima o'rnatgani va qancha olgani ko'rinadi. To'lov USD, SOM yoki ikkalasi bo'lishi mumkin — kurs bo'yicha jamlanadi.`},
+      {h:"⚠ Brak va qoldiq o'zgarishlari", body:"Panel sotuvchi qilgan brak hisobotlari va qoldiq o'zgarishlarini ajratib ko'rsatadi. Shubhali bo'lsa tekshiring."},
+      {h:'📁 Arxiv', body:`Davrni tanlang (7/30 kun, shu oy, o'zingiz). <b>To'liq hisobot</b>: daromad, tannarx, foyda, sotuvlar, o'rnatishlar, mahsulotlar bo'yicha taqsimot. HTML faylga yuklang yoki PDF chop eting.`},
+      {h:"⚙ Sozlamalar", body:"USD/SOM kursi (hamma joyda). Butun bazani JSON ga eksport. JSON dan tiklash. Tema (yorug'/qora) — chap menyu pastida."},
+    ],
+    flow: [
+      {h:'Ertalab', body:`Boshliq: Panelni ko'ring, kam qoldiq va brak/o'zgarishlarni tekshiring. Sotuvchi: Kassani oching.`},
+      {h:'Mijoz xarid qiladi', body:`Sotuvchi: mahsulotlarni bosing → kerak bo'lsa narxni o'zgartiring → USD/SOM to'lovni kiriting → Sotuvni yakunlash.`},
+      {h:"Mijoz avtoni o'rnatishga keltirdi", body:"Sotuvchi: O'rnatishlar → ustani + mahsulotlar + olindi + ustaga to'lov."},
+      {h:'Yetkazuvchi tovar olib keldi', body:`Sotuvchi: Xaridlar → yetkazuvchini tanlang → mahsulot + miqdor → saqlash. Qoldiq oshadi.`},
+      {h:'Brak topildi', body:`Sotuvchi: Mahsulotlar → kerakli mahsulotda Brak → miqdor + sabab. Qoldiqdan ayriladi; boshliq Panelda ko'radi.`},
+      {h:'Hafta / oy oxiri', body:`Boshliq: Arxiv → davr → arxiv uchun HTML hisobotni yuklab oling.`},
+    ],
+  },
+};
+function renderHelpSection(title, items, color){
+  return `<div class="card" style="border-left:4px solid ${color}">
+    <h3 style="margin:0 0 10px 0">${title}</h3>
+    ${items.map(it=>`<div style="margin-bottom:10px">
+      <div style="font-weight:600;margin-bottom:2px">${it.h}</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.45">${it.body}</div>
+    </div>`).join('')}
+  </div>`;
+}
+function viewHelp(){
+  const content = HELP_CONTENT[state.lang] || HELP_CONTENT.en;
+  const sections = [];
+  if(role==='seller' || isBoss()) sections.push(renderHelpSection(t('forSeller'), content.seller, 'var(--accent)'));
+  if(isBoss()) sections.push(renderHelpSection(t('forBoss'), content.boss, 'var(--pos)'));
+  sections.push(renderHelpSection(t('commonFlow'), content.flow, 'var(--hi)'));
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="flex:1;min-width:240px;color:var(--muted);font-size:13px;line-height:1.5">${content.intro}</div>
+      <button onclick="window.print()">🖨 ${t('printReport')}</button>
+    </div>
+    ${sections.join('')}`;
+}
+
+function viewSettings(){
+  V().innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0">${t('exchangeRate')}</h3>
+      <p style="color:var(--muted)">${t('exchangeDesc')}</p>
+      <div class="row">
+        <div class="col" style="max-width:240px"><label>1 USD =</label><input id="set-rate" type="number" step="1" value="${state.rate}"></div>
+        <div style="align-self:flex-end"><button class="primary" onclick="saveRate()">${t('saveRate')}</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">${t('dataBackup')}</h3>
+      <p style="color:var(--muted)">${t('backupDesc')}</p>
+      <button onclick="exportData()">${t('exportJson')}</button>
+      <button onclick="document.getElementById('imp').click()">${t('importJson')}</button>
+      <input id="imp" type="file" accept="application/json" style="display:none" onchange="importData(event)">
+    </div>
+    <div class="card" style="border-color:#5a2a2e">
+      <h3 style="margin-top:0;color:var(--neg)">${t('dangerZone')}</h3>
+      <p style="color:var(--muted)">${t('dangerDesc')}</p>
+      <button class="danger" onclick="wipeData()">${t('wipeAll')}</button>
+    </div>`;
+}
+function saveRate(){
+  const v = Number(document.getElementById('set-rate').value);
+  if(!v || v<=0){ alert(t('invalidAmount')); return;}
+  state.rate = v; save(); updateRateLabel(); alert(t('save'));
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gazmetprod-backup-${today()}.json`;
+  a.click();
+}
+function importData(e){
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      if(!confirm(t('confirmReplace'))) return;
+      state = {...structuredClone(DEFAULT_STATE), ...data};
+      save(); updateRateLabel(); applyStaticI18n(); renderNav(); viewSettings();
+    }catch(err){ alert(t('invalidFile')); }
+  };
+  r.readAsText(f);
+}
+function wipeData(){
+  if(!confirm(t('confirmWipe'))) return;
+  if(!confirm(t('reallyWipe'))) return;
+  localStorage.removeItem(KEY); state = load(); updateRateLabel(); viewSettings();
+}
+
+/* =================== HELPERS =================== */
+function isWithinDays(dateStr, days){
+  if(!dateStr) return false;
+  const d = new Date(dateStr); const now = new Date();
+  return (now - d) <= days*24*60*60*1000 && d <= now;
+}
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));}
+function escapeAttr(s){ return escapeHtml(s);}
+
+/* =================== SEED =================== */
+if(!state.products.length && !state.suppliers.length){
+  const s1 = {id:uid(), name:'Italgas Supply', phone:'+998 90 111 22 33', note:'Main supplier'};
+  state.suppliers.push(s1);
+  state.products.push(
+    {id:uid(), name:'LPG Cylinder 50L', sku:'CYL-50', priceUsd:180, stock:12, supplierId:s1.id, minStock:3},
+    {id:uid(), name:'LPG Reducer Tomasetto', sku:'RED-TM', priceUsd:65, stock:20, supplierId:s1.id, minStock:5},
+    {id:uid(), name:'Gas Injectors Set 4cyl', sku:'INJ-4', priceUsd:95, stock:8, supplierId:s1.id, minStock:2},
+    {id:uid(), name:'Multivalve', sku:'MVL-1', priceUsd:40, stock:15, supplierId:s1.id, minStock:3},
+    {id:uid(), name:'Gas Hose (per m)', sku:'HSE-M', priceUsd:4, stock:120, supplierId:s1.id, minStock:20},
+    {id:uid(), name:'ECU Unit LPG', sku:'ECU-1', priceUsd:140, stock:6, supplierId:s1.id, minStock:2},
+  );
+  state.installers.push({id:uid(),name:'Rustam',phone:'+998 90 555 00 01',rateUsd:25});
+  save();
+}
+
+/* =================== BOOT =================== */
+applyTheme();
+setLangButtons();
+(async function boot(){
+  if(HAS_BACKEND){
+    if(authToken){
+      // Validate token + load state
+      try{
+        const me = await apiFetch('GET','/api/auth/me');
+        if(!me) return;
+        role = me.role; sessionStorage.setItem('role', role);
+        const s = await apiFetch('GET','/api/state');
+        if(s?.data) state = {...structuredClone(DEFAULT_STATE), ...s.data};
+        applyTheme();
+        document.getElementById('login').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        const nav = NAV();
+        if(!nav.find(n=>n.id===currentNav)) currentNav = nav[0]?.id || 'pos';
+        showApp();
+        return;
+      }catch(e){
+        // token invalid - show login
+        authToken = null; localStorage.removeItem(TOKEN_KEY);
+      }
+    }
+    applyLoginI18n();
+  } else {
+    // Standalone
+    if(role){
+      document.getElementById('login').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      const nav = NAV();
+      if(!nav.find(n=>n.id===currentNav)) currentNav = nav[0]?.id || 'pos';
+      showApp();
+    } else {
+      applyLoginI18n();
+    }
+  }
+})();
+</script>
+</body>
+</html>

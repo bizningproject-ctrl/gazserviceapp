@@ -1,0 +1,16 @@
+services:
+  sklad:
+    build: .
+    image: gazmetprod-sklad:latest
+    container_name: gazmetprod-sklad
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DATA_DIR: /app/data
+    volumes:
+      - sklad-data:/app/data
+
+volumes:
+  sklad-data:

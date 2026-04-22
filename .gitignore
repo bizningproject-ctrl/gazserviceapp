@@ -1,0 +1,23 @@
+node_modules/
+npm-debug.log*
+
+# Local data — never commit real warehouse data
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Env / OS
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local settings
+.claude/
