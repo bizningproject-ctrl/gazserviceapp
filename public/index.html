@@ -32,6 +32,11 @@
   button.ghost{background:transparent}
   input,select,textarea{font-family:inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:14px;width:100%}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  input::placeholder{color:var(--muted);opacity:.6}
+  /* Dim a placeholder zero in number inputs so it looks like a hint, not real content.
+     The .placeholder-zero class is toggled by a MutationObserver / input event below. */
+  input[type="number"].placeholder-zero{color:var(--muted);opacity:.55}
+  input[type="number"].placeholder-zero:focus{color:var(--text);opacity:1}
   label{display:block;margin-bottom:4px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
@@ -69,8 +74,12 @@
 
   .app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
   .sidebar{background:var(--sidebar-bg);border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:4px}
-  .brand{font-weight:800;letter-spacing:.5px;margin-bottom:12px;font-size:16px}
+  .brand{font-weight:800;letter-spacing:.5px;margin-bottom:12px;font-size:16px;display:flex;align-items:center;gap:10px}
   .brand small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}
+  .brand-logo{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)}
+  .brand-logo svg{display:block}
+  .login-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px;color:var(--accent)}
+  .login-logo svg{display:block}
   .nav-btn{text-align:left;background:transparent;border:none;color:var(--text);padding:10px 12px;border-radius:6px;width:100%}
   .nav-btn:hover{background:var(--panel)}
   .nav-btn.active{background:var(--panel);color:var(--accent);font-weight:600;border-left:3px solid var(--accent);padding-left:9px}
@@ -132,7 +141,14 @@
 
 <div id="login" class="login">
   <div class="login-box">
-    <h2 id="login-title">Gazmetprod Sklad</h2>
+    <div class="login-logo">
+      <svg width="44" height="44" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor"/>
+        <path d="M16 6.5c.4 2 2.5 3.2 3.6 5.3 1.6 3 .8 6.6-1.7 8.4a5.6 5.6 0 0 1-7-.6c-2.2-2.2-2.3-5.6-.4-8 .9-1.1 2-1.6 2.5-3 .3-.8 1-1.5 1.5-2.1.5.6 1.2 1.4 1.5 2z" fill="#ffffff"/>
+        <circle cx="14" cy="18.5" r="1.6" fill="currentColor" opacity="0.35"/>
+      </svg>
+      <h2 id="login-title" style="margin:0">Gazmetprod Sklad</h2>
+    </div>
     <p id="login-sub">Sign in</p>
     <label id="login-user-label">Username</label>
     <input id="login-user" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
@@ -155,7 +171,16 @@
 
 <div id="app" class="app hidden">
   <aside class="sidebar">
-    <div class="brand">GAZMETPROD<small id="brand-sub">Warehouse system</small></div>
+    <div class="brand">
+      <span class="brand-logo">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect x="2" y="2" width="28" height="28" rx="7" fill="currentColor"/>
+          <path d="M16 6.5c.4 2 2.5 3.2 3.6 5.3 1.6 3 .8 6.6-1.7 8.4a5.6 5.6 0 0 1-7-.6c-2.2-2.2-2.3-5.6-.4-8 .9-1.1 2-1.6 2.5-3 .3-.8 1-1.5 1.5-2.1.5.6 1.2 1.4 1.5 2z" fill="#ffffff"/>
+          <circle cx="14" cy="18.5" r="1.6" fill="currentColor" opacity="0.35"/>
+        </svg>
+      </span>
+      <span style="line-height:1.15">GAZMETPROD<small id="brand-sub">Warehouse system</small></span>
+    </div>
     <div id="nav"></div>
     <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--line)">
       <button class="nav-btn" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:6px"></button>
@@ -217,15 +242,19 @@ const LOCALES = {
     restockCost:'Cost of this restock in USD (leave blank to skip expense)',
     cashier:'Cashier', items:'Items', paidUsd:'Paid USD', paidSom:'Paid SOM', salesCount:'Sales count',
     purchaseHistory:'Purchase History', newPurchase:'+ New Purchase',
-    purchaseCount:'Purchase records', logPurchase:'Log Purchase',
+    purchaseCount:'Purchase records', logPurchase:'Log Purchase', editPurchase:'Edit Purchase',
+    editedBySeller:'edited by seller',
+    sellerInstallerPayHint:"Installer pay is recorded as a separate Expense entry (type: installation pay).",
     selectProduct:'— Select product —', cost:'Cost / unit', addItem:'+ Add Item',
     addSupplierFirst:'Add a supplier first', addProductFirst:'Add at least one product first',
     purchaseNote:'Purchase note (optional)', selectSupplier:'Select supplier',
     purchaseSaved:'Purchase saved. Stock updated and expense recorded.',
     phone:'Phone', totalPurchases:'Total purchases', productsCol:'Products',
     newSupplier:'+ New Supplier', editSupplier:'Edit Supplier',
-    expType:'Type', newExpense:'+ New Expense', expenseEntries:'Expense entries',
+    expType:'Type', newExpense:'+ New Expense', editExpense:'Edit Expense', expenseEntries:'Expense entries',
     expSupOpt:'Supplier (optional, for purchase)',
+    pickInstallerRequired:'Please pick an installer for installation pay.',
+    addInstallerFirstForExp:'Add an installer first (Installers tab) before logging installation pay.',
     ratePerInstall:'Rate / install', jobs:'Jobs', paidWeek:'Paid this week',
     paidMonth:'This month', paidAll:'All-time', allInstallers:'Installers',
     newInstaller:'+ New Installer', editInstaller:'Edit Installer',
@@ -233,9 +262,10 @@ const LOCALES = {
     carPlate:'Car plate', charged:'Charged', paidToInstaller:'Paid to installer',
     installerCol:'Installer', logJob:'+ Log Install Job', totalJobs:'Total install jobs',
     chargedUsd:'Charged USD', chargedSom:'Charged SOM',
-    payToInstaller:'Paid to installer (USD)',
+    payToInstaller:'Paid to installer (USD)', payToInstallerSom:'Paid to installer (SOM)',
     exchangeRate:'Exchange Rate', exchangeDesc:'Set how many SOM equal 1 USD. Used across the whole app.',
     saveRate:'Save rate', dataBackup:'Data Backup',
+    rateLivePreview:'Live preview at this rate', previewUnsaved:'Unsaved', previewCurrent:'Current rate',
     backupDesc:'Export all data as JSON, or import from a previous export.',
     exportJson:'Export JSON', importJson:'Import JSON',
     dangerZone:'Danger zone', dangerDesc:'Wipe all local data. Cannot be undone.',
@@ -254,7 +284,7 @@ const LOCALES = {
     stockChanges:'Stock changes by seller', stockChangeHint:'Manual stock edits — boss view',
     bySeller:'by seller', byBoss:'by boss', noStockChanges:'No manual stock changes',
     archive:'Archive', period:'Period', from:'From', to:'To',
-    last7:'Last 7 days', last30:'Last 30 days', thisMonthRange:'This month', allTime:'All time',
+    last7:'Last 7 days', last30:'Last 30 days', thisMonthRange:'This month', allTime:'All time', todayRange:'Today',
     downloadHtml:'Download report (HTML)', printReport:'Print',
     summary:'Summary', soldItems:'Sold items', installersSection:'Install jobs in period',
     productsSold:'Products sold', totalQty:'Total qty', generated:'Generated',
@@ -265,6 +295,14 @@ const LOCALES = {
     help:'Help', forSeller:'For Seller', forBoss:'For Boss', commonFlow:'Daily flow',
     addInstaller:'+ Add installer', installersCol:'Installers',
     recentPayments:'Recent payments',
+    confirmSaleTitle:'Confirm Sale', reviewBeforeConfirm:'Review the details before confirming.',
+    lineTotal:'Line total', vsList:'vs list',
+    confirmAndSave:'Confirm & Save', backToEdit:'Back to edit',
+    receivedTotal:'Received total', listTotal:'List total', listPriceCol:'List price',
+    effectivePrice:'Effective price',
+    avgSold:'Avg sold', avgSoldHint:'Average actual sold price from past transactions',
+    enterReceived:'Enter the amount received in USD and / or SOM.',
+    zeroReceivedConfirm:'No payment entered. Record sale anyway?',
   },
   ru:{
     brandSub:'Складская система', ratePrefix:'Курс:',
@@ -302,15 +340,19 @@ const LOCALES = {
     restockCost:'Стоимость пополнения в USD (пусто = без расхода)',
     cashier:'Кассир', items:'Товары', paidUsd:'USD', paidSom:'Сумы', salesCount:'Продаж',
     purchaseHistory:'История закупок', newPurchase:'+ Новая закупка',
-    purchaseCount:'Записей о закупках', logPurchase:'Записать закупку',
+    purchaseCount:'Записей о закупках', logPurchase:'Записать закупку', editPurchase:'Редактировать закупку',
+    editedBySeller:'правил продавец',
+    sellerInstallerPayHint:'Выплата установщику записывается отдельной записью Расходов (тип: оплата установки).',
     selectProduct:'— Выберите товар —', cost:'Цена / шт.', addItem:'+ Добавить позицию',
     addSupplierFirst:'Сначала добавьте поставщика', addProductFirst:'Сначала добавьте хотя бы один товар',
     purchaseNote:'Заметка о закупке (необязательно)', selectSupplier:'Выберите поставщика',
     purchaseSaved:'Закупка сохранена. Остаток обновлён, расход записан.',
     phone:'Телефон', totalPurchases:'Сумма закупок', productsCol:'Товаров',
     newSupplier:'+ Новый поставщик', editSupplier:'Редактировать поставщика',
-    expType:'Тип', newExpense:'+ Новый расход', expenseEntries:'Записей',
+    expType:'Тип', newExpense:'+ Новый расход', editExpense:'Редактировать расход', expenseEntries:'Записей',
     expSupOpt:'Поставщик (необязательно, для закупок)',
+    pickInstallerRequired:'Выберите установщика для оплаты установки.',
+    addInstallerFirstForExp:'Сначала добавьте установщика (вкладка «Установщики»), затем записывайте оплату.',
     ratePerInstall:'Оплата за установку', jobs:'Установок', paidWeek:'За неделю',
     paidMonth:'За месяц', paidAll:'За всё время', allInstallers:'Установщиков',
     newInstaller:'+ Новый установщик', editInstaller:'Редактировать установщика',
@@ -318,9 +360,10 @@ const LOCALES = {
     carPlate:'Гос. номер', charged:'Получено', paidToInstaller:'Выплата установщику',
     installerCol:'Установщик', logJob:'+ Записать установку', totalJobs:'Всего установок',
     chargedUsd:'Получено USD', chargedSom:'Получено сумов',
-    payToInstaller:'Выплата установщику (USD)',
+    payToInstaller:'Выплата установщику (USD)', payToInstallerSom:'Выплата установщику (сум)',
     exchangeRate:'Курс валют', exchangeDesc:'Сколько сумов равно 1 USD. Используется во всём приложении.',
     saveRate:'Сохранить курс', dataBackup:'Резервная копия',
+    rateLivePreview:'Предпросмотр по этому курсу', previewUnsaved:'Не сохранено', previewCurrent:'Текущий курс',
     backupDesc:'Экспорт всех данных в JSON или импорт из файла.',
     exportJson:'Экспорт JSON', importJson:'Импорт JSON',
     dangerZone:'Опасная зона', dangerDesc:'Удалить все локальные данные. Необратимо.',
@@ -339,7 +382,7 @@ const LOCALES = {
     stockChanges:'Изменения остатков продавцом', stockChangeHint:'Ручные правки — для босса',
     bySeller:'продавец', byBoss:'босс', noStockChanges:'Изменений нет',
     archive:'Архив', period:'Период', from:'С', to:'По',
-    last7:'7 дней', last30:'30 дней', thisMonthRange:'Этот месяц', allTime:'Всё время',
+    last7:'7 дней', last30:'30 дней', thisMonthRange:'Этот месяц', allTime:'Всё время', todayRange:'Сегодня',
     downloadHtml:'Скачать отчёт (HTML)', printReport:'Печать',
     summary:'Сводка', soldItems:'Проданные товары', installersSection:'Установки за период',
     productsSold:'Продано', totalQty:'Всего шт.', generated:'Создан',
@@ -350,6 +393,14 @@ const LOCALES = {
     help:'Помощь', forSeller:'Для продавца', forBoss:'Для босса', commonFlow:'Ежедневный процесс',
     addInstaller:'+ Добавить установщика', installersCol:'Установщики',
     recentPayments:'Последние выплаты',
+    confirmSaleTitle:'Подтверждение продажи', reviewBeforeConfirm:'Проверьте детали перед подтверждением.',
+    lineTotal:'Сумма', vsList:'от прайса',
+    confirmAndSave:'Подтвердить и сохранить', backToEdit:'Назад к правкам',
+    receivedTotal:'Всего получено', listTotal:'По прайсу', listPriceCol:'Цена прайс',
+    effectivePrice:'Факт. цена',
+    avgSold:'Сред. продажа', avgSoldHint:'Средняя фактическая цена продажи по истории',
+    enterReceived:'Введите полученную сумму в USD и / или сумах.',
+    zeroReceivedConfirm:'Оплата не указана. Записать продажу?',
   },
   uz:{
     brandSub:'Ombor tizimi', ratePrefix:'Kurs:',
@@ -387,15 +438,19 @@ const LOCALES = {
     restockCost:"USDda xarid narxi (bo'sh = xarajatsiz)",
     cashier:'Kassir', items:'Mahsulotlar', paidUsd:'USD', paidSom:'Som', salesCount:'Sotuvlar soni',
     purchaseHistory:'Xaridlar tarixi', newPurchase:'+ Yangi xarid',
-    purchaseCount:'Xarid yozuvlari', logPurchase:'Xaridni qayd etish',
+    purchaseCount:'Xarid yozuvlari', logPurchase:'Xaridni qayd etish', editPurchase:'Xaridni tahrirlash',
+    editedBySeller:"sotuvchi tahrirladi",
+    sellerInstallerPayHint:"Ustaga to'lov alohida Xarajat yozuvi sifatida qayd etiladi (turi: o'rnatish haqi).",
     selectProduct:'— Mahsulotni tanlang —', cost:'Narx / dona', addItem:"+ Qator qo'shish",
     addSupplierFirst:"Avval yetkazuvchi qo'shing", addProductFirst:"Avval kamida bitta mahsulot qo'shing",
     purchaseNote:'Xarid izohi (ixtiyoriy)', selectSupplier:'Yetkazuvchini tanlang',
     purchaseSaved:'Xarid saqlandi. Qoldiq yangilandi, xarajat qayd etildi.',
     phone:'Telefon', totalPurchases:'Jami xaridlar', productsCol:'Mahsulotlar',
     newSupplier:'+ Yangi yetkazuvchi', editSupplier:'Yetkazuvchini tahrirlash',
-    expType:'Turi', newExpense:'+ Yangi xarajat', expenseEntries:'Yozuvlar',
+    expType:'Turi', newExpense:'+ Yangi xarajat', editExpense:'Xarajatni tahrirlash', expenseEntries:'Yozuvlar',
     expSupOpt:'Yetkazuvchi (ixtiyoriy, xarid uchun)',
+    pickInstallerRequired:"O'rnatish haqi uchun usta tanlang.",
+    addInstallerFirstForExp:"Avval usta qo'shing (Ustalar bo'limi), keyin o'rnatish haqini qayd eting.",
     ratePerInstall:"O'rnatish uchun haq", jobs:'Ish soni', paidWeek:'Bu hafta',
     paidMonth:'Bu oy', paidAll:'Jami davr', allInstallers:'Ustalar',
     newInstaller:'+ Yangi usta', editInstaller:'Ustani tahrirlash',
@@ -403,9 +458,10 @@ const LOCALES = {
     carPlate:'Avto raqami', charged:'Olindi', paidToInstaller:"Ustaga to'landi",
     installerCol:'Usta', logJob:"+ O'rnatishni qayd etish", totalJobs:"Jami o'rnatishlar",
     chargedUsd:'USDda olindi', chargedSom:'Somda olindi',
-    payToInstaller:"Ustaga to'lov (USD)",
+    payToInstaller:"Ustaga to'lov (USD)", payToInstallerSom:"Ustaga to'lov (som)",
     exchangeRate:'Valyuta kursi', exchangeDesc:'1 USD necha somga teng. Hamma joyda ishlatiladi.',
     saveRate:'Kursni saqlash', dataBackup:'Zaxira nusxa',
+    rateLivePreview:"Ushbu kurs bo'yicha jonli ko'rinish", previewUnsaved:'Saqlanmagan', previewCurrent:'Joriy kurs',
     backupDesc:"Hamma ma'lumotni JSON sifatida saqlash yoki yuklash.",
     exportJson:'JSON eksport', importJson:'JSON import',
     dangerZone:'Xavfli hudud', dangerDesc:"Hamma mahalliy ma'lumotni o'chirish. Qaytarib bo'lmaydi.",
@@ -424,7 +480,7 @@ const LOCALES = {
     stockChanges:"Sotuvchi tomonidan qoldiq o'zgarishi", stockChangeHint:"Qo'lda tahrir — boshliq uchun",
     bySeller:'sotuvchi', byBoss:'boshliq', noStockChanges:"O'zgarishlar yo'q",
     archive:'Arxiv', period:'Davr', from:'Dan', to:'Gacha',
-    last7:'7 kun', last30:'30 kun', thisMonthRange:'Shu oy', allTime:'Barcha vaqt',
+    last7:'7 kun', last30:'30 kun', thisMonthRange:'Shu oy', allTime:'Barcha vaqt', todayRange:'Bugun',
     downloadHtml:'Hisobotni yuklash (HTML)', printReport:'Chop etish',
     summary:'Xulosa', soldItems:'Sotilgan tovarlar', installersSection:"Davrdagi o'rnatishlar",
     productsSold:'Sotilgan', totalQty:'Jami dona', generated:'Yaratilgan',
@@ -435,6 +491,14 @@ const LOCALES = {
     help:'Yordam', forSeller:'Sotuvchi uchun', forBoss:'Boshliq uchun', commonFlow:'Kunlik jarayon',
     addInstaller:"+ Usta qo'shish", installersCol:'Ustalar',
     recentPayments:"So'nggi to'lovlar",
+    confirmSaleTitle:'Sotuvni tasdiqlash', reviewBeforeConfirm:'Tasdiqlashdan oldin tafsilotlarni tekshiring.',
+    lineTotal:'Jami', vsList:"ro'yxatdan",
+    confirmAndSave:'Tasdiqlash va saqlash', backToEdit:'Orqaga',
+    receivedTotal:'Jami olindi', listTotal:"Ro'yxat bo'yicha", listPriceCol:"Ro'yxat narxi",
+    effectivePrice:'Haqiqiy narx',
+    avgSold:"O'rt. sotuv", avgSoldHint:"O'tgan sotuvlarning o'rtacha haqiqiy narxi",
+    enterReceived:'USD va / yoki somda olingan summani kiriting.',
+    zeroReceivedConfirm:"To'lov kiritilmagan. Sotuv saqlansinmi?",
   },
 };
 function t(k){ return (LOCALES[state.lang]||LOCALES.en)[k] || LOCALES.en[k] || k; }
@@ -511,6 +575,36 @@ function save(){
     localStorage.setItem(KEY, JSON.stringify(state));
   }
 }
+// Mark a number input as "placeholder-zero" when its value is exactly "0"
+// (or "0.00", etc.) — CSS dims it so it reads as a hint, not real content.
+function markZeroState(el){
+  if(!el || el.tagName !== 'INPUT' || el.type !== 'number') return;
+  const v = (el.value||'').trim();
+  if(v === '' || Number(v) === 0) el.classList.add('placeholder-zero');
+  else el.classList.remove('placeholder-zero');
+}
+// Initial pass + re-pass whenever the DOM changes (modals open, views switch, etc.)
+function markAllZeros(){
+  document.querySelectorAll('input[type="number"]').forEach(markZeroState);
+}
+new MutationObserver(()=>markAllZeros()).observe(document.documentElement, {childList:true, subtree:true});
+document.addEventListener('input', e => markZeroState(e.target));
+// When a number input gets focus, select its contents so typing replaces
+// the placeholder zero instead of appending to it.
+document.addEventListener('focusin', e => {
+  const el = e.target;
+  if(!el || el.tagName !== 'INPUT' || el.type !== 'number') return;
+  // Defer slightly so the cursor placement doesn't override the selection
+  setTimeout(() => { try { el.select(); } catch(_){} }, 0);
+});
+// On blur, if a number input was left empty, normalize it back to "0" so
+// downstream Number(...) coercion stays consistent across the app.
+document.addEventListener('focusout', e => {
+  const el = e.target;
+  if(!el || el.tagName !== 'INPUT' || el.type !== 'number') return;
+  if(el.value === '' || el.value === '-' || el.value === '.') el.value = '0';
+  markZeroState(el);
+});
 // Flush pending saves before page unload
 window.addEventListener('beforeunload', ()=>{
   if(savePending && navigator.sendBeacon && HAS_BACKEND && authToken){
@@ -538,13 +632,75 @@ function updateSomHint(inputId, hintId){
 }
 const usdToSom = v => (Number(v)||0) * state.rate;
 const somToUsd = v => (Number(v)||0) / state.rate;
-// Returns the list of installer assignments for a job (supports old single-installer + new multi-installer shape)
+/* Render a stacked two-currency value for KPI tiles. Each currency shows its
+   ACTUAL amount (no conversion). SOM is primary (bold, large) since it's the
+   common currency here; USD goes underneath as a smaller bold line.
+   - neither > 0 → muted dash
+   - only one > 0 → that one as the only line, full size
+   - both > 0   → SOM bold large, USD bold small underneath
+   opts.color overrides the value color (e.g. var(--pos), var(--neg)). */
+function fmtTwoCurrencyStack(somV, usdV, opts){
+  opts = opts || {};
+  const color = opts.color || 'var(--text)';
+  somV = Number(somV)||0; usdV = Number(usdV)||0;
+  if(somV<=0 && usdV<=0){
+    return `<div class="v" style="color:var(--muted)">—</div>`;
+  }
+  const somLine = somV>0
+    ? `<div style="font-size:22px;font-weight:700;color:${color};line-height:1.15">${fmtSom(somV)}</div>`
+    : '';
+  const usdLine = usdV>0
+    ? `<div style="font-size:${somV>0?'13px':'22px'};font-weight:${somV>0?'600':'700'};color:${somV>0?'var(--muted)':color};margin-top:${somV>0?'2px':'0'};line-height:1.15">${fmtUsd(usdV)}</div>`
+    : '';
+  return somLine + usdLine;
+}
+/* Render a dual-currency cell:
+   - neither > 0  → small muted dash
+   - only one > 0 → normal display, SOM primary if SOM is the one used
+   - both    > 0  → bold + green (var(--pos)) + larger font  */
+function fmtDualPay(somAmount, usdAmount, opts){
+  const s = Number(somAmount)||0;
+  const u = Number(usdAmount)||0;
+  const muted = (opts && opts.muted) || 'var(--muted)';
+  if(s <= 0 && u <= 0){
+    return `<span style="color:${muted};font-size:11px">—</span>`;
+  }
+  if(s > 0 && u > 0){
+    return `<div style="color:var(--pos);font-weight:700;font-size:15px;line-height:1.2">${fmtSom(s)}</div>
+            <div style="color:var(--pos);font-weight:600;font-size:13px;line-height:1.2">${fmtUsd(u)}</div>`;
+  }
+  if(s > 0) return `<b>${fmtSom(s)}</b>`;
+  return `<b>${fmtUsd(u)}</b>`;
+}
+// Returns the list of installer assignments for a job. Supports:
+//   - new shape: j.installers = [{installerId}, ...] + job-level j.installerPayUsd / j.installerPaySom
+//   - legacy:    j.installers = [{installerId, paidUsd, paidSom}, ...]
+//   - oldest:    j.installerId + j.paidToInstallerUsd / j.paidToInstallerSom
+// Always returns objects with paidUsd / paidSom populated (job-level pay is split equally for fairness).
 function jobInstallers(j){
-  if(Array.isArray(j.installers) && j.installers.length) return j.installers;
-  if(j.installerId) return [{installerId:j.installerId, paidUsd:j.paidToInstallerUsd||0, paidSom:j.paidToInstallerSom||0}];
+  if(Array.isArray(j.installers) && j.installers.length){
+    if(j.installerPayUsd != null || j.installerPaySom != null){
+      const n = j.installers.length;
+      const u = (Number(j.installerPayUsd)||0) / n;
+      const s = (Number(j.installerPaySom)||0) / n;
+      return j.installers.map(a => ({installerId:a.installerId, paidUsd:u, paidSom:s}));
+    }
+    return j.installers.map(a => ({installerId:a.installerId, paidUsd:Number(a.paidUsd)||0, paidSom:Number(a.paidSom)||0}));
+  }
+  if(j.installerId) return [{installerId:j.installerId, paidUsd:Number(j.paidToInstallerUsd)||0, paidSom:Number(j.paidToInstallerSom)||0}];
   return [];
 }
+// Total pay USD (sum across installers, with SOM converted)
 const installerPayUsd = j => jobInstallers(j).reduce((s,a)=>s+(a.paidUsd||0)+somToUsd(a.paidSom||0),0);
+// Total pay SOM at job level (without USD conversion)
+function installerPaySomTotal(j){
+  if(j.installerPaySom != null) return Number(j.installerPaySom)||0;
+  return jobInstallers(j).reduce((s,a)=>s+(Number(a.paidSom)||0),0);
+}
+function installerPayUsdTotal(j){
+  if(j.installerPayUsd != null) return Number(j.installerPayUsd)||0;
+  return jobInstallers(j).reduce((s,a)=>s+(Number(a.paidUsd)||0),0);
+}
 function installerPayForJob(j, installerId){
   return jobInstallers(j).filter(a=>a.installerId===installerId).reduce((s,a)=>s+(a.paidUsd||0)+somToUsd(a.paidSom||0),0);
 }
@@ -776,10 +932,15 @@ function renderPOSGrid(){
   if(!list.length){ grid.innerHTML = `<div class="card">${t('noData')}</div>`; return;}
   grid.innerHTML = list.map(p=>{
     const out = p.stock<=0 ? 'out' : '';
+    const avg = productAvgSold(p.id);
+    const avgLine = avg
+      ? `<div style="color:var(--accent);font-size:11px;margin-top:2px" title="${t('avgSoldHint')}">${t('avgSold')}: ${fmtUsd(avg.avgUsd)}</div>`
+      : '';
     return `<div class="prod-card ${out}" onclick="${p.stock>0?`addToCart('${p.id}')`:''}">
       <div class="name">${escapeHtml(p.name)}</div>
       <div class="price">${fmtUsd(p.priceUsd)}</div>
       <div style="color:var(--muted);font-size:12px">${fmtSom(usdToSom(p.priceUsd))}</div>
+      ${avgLine}
       <div class="stock">${t('stockCol')}: ${p.stock}${p.sku?' · '+escapeHtml(p.sku):''}</div>
     </div>`;
   }).join('');
@@ -800,74 +961,157 @@ function changeQty(pid, d){
   if(next>p.stock){ alert(t('notEnoughStock')); return;}
   it.qty = next; renderCart();
 }
-function changeCartPrice(pid, val){
-  const it = cart.find(c=>c.productId===pid); if(!it) return;
-  it.priceUsd = Math.max(0, Number(val)||0);
-  renderCart();
-}
 function renderCart(){
   const box = document.getElementById('cart-items'); if(!box) return;
-  if(!cart.length) box.innerHTML = `<div style="color:var(--muted);padding:10px 0">${t('cartEmpty')}</div>`;
-  else box.innerHTML = cart.map(it=>{
-    const p = state.products.find(x=>x.id===it.productId);
-    const listPrice = p.priceUsd;
-    const diff = it.priceUsd - listPrice;
-    let hint = '';
-    if(Math.abs(diff)>0.001){
-      const cls = diff>0 ? 'good' : 'bad';
-      const sign = diff>0 ? '+' : '';
-      hint = ` <span class="chip ${cls}" style="padding:1px 6px;font-size:10px">${sign}${fmtUsd(diff)}</span>`;
-    }
-    return `<div class="cart-item">
-      <div style="flex:1">
-        <div style="font-weight:600">${escapeHtml(p.name)}</div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap">
-          <span style="color:var(--muted);font-size:12px">$</span>
-          <input type="number" step="0.01" min="0" value="${it.priceUsd}" onchange="changeCartPrice('${p.id}',this.value)" style="width:78px;padding:3px 6px;font-size:12px">
-          <span style="color:var(--muted);font-size:12px">× ${it.qty} = <b style="color:var(--text)">${fmtUsd(it.priceUsd*it.qty)}</b>${hint}</span>
+  if(!cart.length){
+    box.innerHTML = `<div style="color:var(--muted);padding:10px 0">${t('cartEmpty')}</div>`;
+  } else {
+    box.innerHTML = cart.map(it=>{
+      const p = state.products.find(x=>x.id===it.productId);
+      const listPrice = p.priceUsd;
+      const lineTotal = listPrice * it.qty;
+      const avg = productAvgSold(p.id);
+      const avgHint = avg ? `<span class="chip" style="padding:1px 6px;font-size:10px;background:var(--panel2);color:var(--muted)" title="${t('avgSoldHint')}">${t('avgSold')}: ${fmtUsd(avg.avgUsd)}</span>` : '';
+      return `<div class="cart-item">
+        <div style="flex:1">
+          <div style="font-weight:600">${escapeHtml(p.name)}</div>
+          <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:var(--muted);font-size:12px">${fmtUsd(listPrice)} × ${it.qty} = <b style="color:var(--text)">${fmtUsd(lineTotal)}</b></span>
+            ${avgHint}
+          </div>
         </div>
-      </div>
-      <div class="qty-ctrl">
-        <button onclick="changeQty('${p.id}',-1)">−</button>
-        <span style="min-width:20px;text-align:center">${it.qty}</span>
-        <button onclick="changeQty('${p.id}',1)">+</button>
-      </div>
-    </div>`;
-  }).join('');
-  const total = cartTotalUsd();
-  document.getElementById('cart-total-line').innerHTML = `${fmtUsd(total)}<br><span style="font-size:13px;color:var(--muted);font-weight:400">${fmtSom(usdToSom(total))}</span>`;
+        <div class="qty-ctrl">
+          <button onclick="changeQty('${p.id}',-1)">−</button>
+          <span style="min-width:20px;text-align:center">${it.qty}</span>
+          <button onclick="changeQty('${p.id}',1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const listTotal = cartListTotalUsd();
+  document.getElementById('cart-total-line').innerHTML = `${fmtUsd(listTotal)}<br><span style="font-size:13px;color:var(--muted);font-weight:400">${fmtSom(usdToSom(listTotal))}</span>`;
   recalcPay();
 }
 function cartTotalUsd(){ return cart.reduce((s,it)=>s + (Number(it.priceUsd)||0)*it.qty, 0);}
+function cartListTotalUsd(){
+  return cart.reduce((s,it)=>{
+    const p = state.products.find(x=>x.id===it.productId);
+    return s + (p?.priceUsd||0) * it.qty;
+  },0);
+}
+/* Average actual sold price per unit, computed from sales history.
+   Returns null if the product has not been sold yet. */
+function productAvgSold(productId){
+  let sumUsd = 0, sumQty = 0;
+  for(const s of state.sales||[]){
+    for(const it of s.items||[]){
+      if(it.productId === productId){
+        sumUsd += (Number(it.priceUsd)||0) * (it.qty||0);
+        sumQty += (it.qty||0);
+      }
+    }
+  }
+  if(sumQty <= 0) return null;
+  return {avgUsd: sumUsd/sumQty, count: sumQty};
+}
 function recalcPay(){
-  const total = cartTotalUsd();
   const u = Number(document.getElementById('pay-usd')?.value)||0;
   const s = Number(document.getElementById('pay-som')?.value)||0;
-  const paidUsd = u + somToUsd(s);
-  const diff = paidUsd - total;
+  const received = u + somToUsd(s);
   const box = document.getElementById('pay-status'); if(!box) return;
   if(!cart.length){ box.innerHTML=''; return;}
-  if(Math.abs(diff)<0.01) box.innerHTML = `<span class="chip good">${t('exactPayment')}</span>`;
-  else if(diff>0) box.innerHTML = `<span class="chip warn">${t('change')}: ${fmtUsd(diff)} (${fmtSom(usdToSom(diff))})</span>`;
-  else box.innerHTML = `<span class="chip bad">${t('missing')}: ${fmtUsd(-diff)} (${fmtSom(usdToSom(-diff))})</span>`;
+  if(received <= 0){
+    box.innerHTML = `<span style="color:var(--muted);font-size:12px">${t('enterReceived')}</span>`;
+  } else {
+    box.innerHTML = `<div style="color:var(--muted);font-size:12px">${t('receivedTotal')}</div>
+      <div style="font-weight:700;font-size:15px">${fmtUsd(received)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${fmtSom(usdToSom(received))})</span></div>`;
+  }
 }
-function autoPayUsd(){ document.getElementById('pay-usd').value = cartTotalUsd().toFixed(2); document.getElementById('pay-som').value = 0; recalcPay();}
-function autoPaySom(){ document.getElementById('pay-som').value = Math.round(usdToSom(cartTotalUsd())); document.getElementById('pay-usd').value = 0; recalcPay();}
+function autoPayUsd(){ document.getElementById('pay-usd').value = cartListTotalUsd().toFixed(2); document.getElementById('pay-som').value = 0; recalcPay();}
+function autoPaySom(){ document.getElementById('pay-som').value = Math.round(usdToSom(cartListTotalUsd())); document.getElementById('pay-usd').value = 0; recalcPay();}
+/* Effective per-unit prices for each cart line, derived from the actually
+   received total (split proportionally to list price, fallback to qty share). */
+function effectiveUnitPrices(receivedUsd){
+  const listTotal = cartListTotalUsd();
+  const totalQty = cart.reduce((s,it)=>s+it.qty,0);
+  return cart.map(it=>{
+    const p = state.products.find(x=>x.id===it.productId);
+    const listLine = (p?.priceUsd||0) * it.qty;
+    let unit;
+    if(receivedUsd <= 0){ unit = 0;}
+    else if(listTotal > 0){ unit = (p?.priceUsd||0) * (receivedUsd / listTotal);}
+    else if(totalQty > 0){ unit = receivedUsd / totalQty;}
+    else { unit = 0;}
+    return {productId:p.id, name:p.name, qty:it.qty, listPrice:p?.priceUsd||0, listLine, unitPriceUsd:unit};
+  });
+}
 function completeSale(){
   if(!cart.length){ alert(t('cartEmpty')); return;}
-  const total = cartTotalUsd();
   const paidUsd = Number(document.getElementById('pay-usd').value)||0;
   const paidSom = Number(document.getElementById('pay-som').value)||0;
   const received = paidUsd + somToUsd(paidSom);
-  if(received + 0.01 < total){ if(!confirm(t('underpayment')+' '+fmtUsd(total-received)+t('recordAnyway'))) return;}
+  const listTotal = cartListTotalUsd();
+  const lines = effectiveUnitPrices(received);
+  const itemRows = lines.map(l=>{
+    const d = l.unitPriceUsd - l.listPrice;
+    let chip = '';
+    if(received > 0 && Math.abs(d) > 0.005){
+      const cls = d>0 ? 'good' : 'warn';
+      const sign = d>0 ? '+' : '';
+      chip = ` <span class="chip ${cls}" style="padding:1px 6px;font-size:10px">${sign}${fmtUsd(d)} ${t('vsList')}</span>`;
+    }
+    return `<tr>
+      <td>${escapeHtml(l.name)}</td>
+      <td style="text-align:center">${l.qty}</td>
+      <td style="text-align:right;color:var(--muted)">${fmtUsd(l.listPrice)}</td>
+      <td style="text-align:right">${fmtUsd(l.unitPriceUsd)}${chip}</td>
+      <td style="text-align:right"><b>${fmtUsd(l.unitPriceUsd*l.qty)}</b></td>
+    </tr>`;
+  }).join('');
+  modal(`
+    <h3>${t('confirmSaleTitle')}</h3>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:12px">${t('reviewBeforeConfirm')}</div>
+    <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--bg)">
+          <th style="text-align:left;padding:8px">${t('name')}</th>
+          <th style="text-align:center;padding:8px">${t('qty')}</th>
+          <th style="text-align:right;padding:8px">${t('listPriceCol')}</th>
+          <th style="text-align:right;padding:8px">${t('effectivePrice')}</th>
+          <th style="text-align:right;padding:8px">${t('lineTotal')}</th>
+        </tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:14px;padding:10px;background:var(--bg);border-radius:8px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('listTotal')}</span><b style="color:var(--muted)">${fmtUsd(listTotal)} <span style="font-weight:400">(${fmtSom(usdToSom(listTotal))})</span></b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidInUsd')}</span><b>${fmtUsd(paidUsd)}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidInSom')}</span><b>${fmtSom(paidSom)} <span style="color:var(--muted);font-weight:400">(${fmtUsd(somToUsd(paidSom))})</span></b></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0 2px;border-top:1px dashed var(--line);margin-top:4px"><span style="font-weight:600">${t('receivedTotal')}</span><b style="font-size:16px">${fmtUsd(received)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${fmtSom(usdToSom(received))})</span></b></div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('backToEdit')}</button>
+      <button class="primary" onclick="finalizeSale()">${t('confirmAndSave')}</button>
+    </div>`);
+}
+function finalizeSale(){
+  if(!cart.length){ closeModal(); return;}
+  const paidUsd = Number(document.getElementById('pay-usd').value)||0;
+  const paidSom = Number(document.getElementById('pay-som').value)||0;
+  const received = paidUsd + somToUsd(paidSom);
+  if(received <= 0){
+    if(!confirm(t('zeroReceivedConfirm'))) return;
+  }
+  const lines = effectiveUnitPrices(received);
   state.sales.push({
     id:uid(), date:nowISO(), cashier:'user',
-    items: cart.map(it=>{const p=state.products.find(x=>x.id===it.productId);return {productId:p.id,name:p.name,qty:it.qty,priceUsd:Number(it.priceUsd)||0};}),
-    paidUsd, paidSom, totalUsd: total
+    items: lines.map(l=>({productId:l.productId, name:l.name, qty:l.qty, priceUsd:l.unitPriceUsd})),
+    paidUsd, paidSom, totalUsd: received
   });
   cart.forEach(it=>{const p=state.products.find(x=>x.id===it.productId); p.stock=Math.max(0,p.stock-it.qty);});
   save();
-  alert(t('saleComplete')+' '+fmtUsd(total));
+  closeModal();
+  alert(t('saleComplete')+' '+fmtUsd(received));
   viewPOS();
 }
 
@@ -1157,13 +1401,17 @@ function renderPurchaseList(){
       ? `${escapeHtml(i.name)} ×${i.qty} (${fmtUsd(i.costUsd)})`
       : `${escapeHtml(i.name)} ×${i.qty}`
     ).join(', ');
+    // Audit chip: only the boss sees "edited by seller" — visual cue for any post-creation correction.
+    const editedChip = (boss && p.editedBy === 'seller')
+      ? ` <span class="chip warn" style="font-size:10px" title="${escapeAttr(p.editedAt||'')}">${t('editedBySeller')}</span>`
+      : '';
     return `<tr>
-      <td>${p.date}</td>
+      <td>${p.date}${editedChip}</td>
       <td>${sup?escapeHtml(sup.name):'—'}</td>
       <td style="max-width:340px">${items}</td>
       ${boss?`<td>${fmtUsd(p.totalUsd)}<br><small style="color:var(--muted)">${fmtSom(usdToSom(p.totalUsd))}</small></td>`:''}
       <td>${escapeHtml(p.note||'')}</td>
-      <td style="text-align:right"><button class="danger" onclick="delPurchase('${p.id}')">${t('del')}</button></td>
+      <td style="text-align:right;white-space:nowrap"><button onclick="openPurchase('${p.id}')">${t('edit')}</button><button class="danger" onclick="delPurchase('${p.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
   const cols = boss ? 6 : 5;
@@ -1173,21 +1421,35 @@ function renderPurchaseList(){
       <tbody>${rows||`<tr><td colspan="${cols}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
 }
-function openPurchase(){
-  if(!state.suppliers.length){ alert(t('addSupplierFirst')); return;}
-  if(!state.products.length){ alert(t('addProductFirst')); return;}
-  const first = state.products[0];
-  purchaseDraft = [{productId:first.id, qty:1, costUsd:first.costUsd||0}];
-  const supOpts = state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+function openPurchase(id){
+  const editing = id ? state.purchases.find(x=>x.id===id) : null;
+  if(!editing){
+    if(!state.suppliers.length){ alert(t('addSupplierFirst')); return;}
+    if(!state.products.length){ alert(t('addProductFirst')); return;}
+  }
+  if(editing){
+    purchaseDraft = (editing.items||[]).map(i => ({productId:i.productId, qty:i.qty, costUsd:i.costUsd}));
+    if(!purchaseDraft.length){
+      const first = state.products[0];
+      purchaseDraft = [{productId:first.id, qty:1, costUsd:first.costUsd||0}];
+    }
+  } else {
+    const first = state.products[0];
+    purchaseDraft = [{productId:first.id, qty:1, costUsd:first.costUsd||0}];
+  }
+  const supOpts = state.suppliers.map(s=>{
+    const sel = editing && editing.supplierId===s.id ? ' selected' : '';
+    return `<option value="${s.id}"${sel}>${escapeHtml(s.name)}</option>`;
+  }).join('');
   const totalBlock = isBoss() ? `
     <div style="margin-top:14px;padding:10px;background:var(--panel2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
       <b>${t('total')}</b>
       <b id="p-total" style="font-size:18px">$0.00</b>
     </div>` : '';
   modal(`
-    <h3>${t('logPurchase')}</h3>
+    <h3>${editing ? t('editPurchase') : t('logPurchase')}</h3>
     <div class="row">
-      <div class="col"><label>${t('date')}</label><input id="p-date" type="date" value="${today()}"></div>
+      <div class="col"><label>${t('date')}</label><input id="p-date" type="date" value="${editing?editing.date:today()}"></div>
       <div class="col"><label>${t('supplier')}</label><select id="p-sup">${supOpts}</select></div>
     </div>
     <label style="margin-top:12px">${t('items')}</label>
@@ -1195,10 +1457,10 @@ function openPurchase(){
     <button onclick="addPurchaseLine()" style="margin-top:6px">${t('addItem')}</button>
     ${totalBlock}
     <label style="margin-top:10px">${t('purchaseNote')}</label>
-    <textarea id="p-note" rows="2"></textarea>
+    <textarea id="p-note" rows="2">${editing?escapeHtml(editing.note||''):''}</textarea>
     <div class="modal-actions">
       <button onclick="closeModal()">${t('cancel')}</button>
-      <button class="primary" onclick="savePurchase()">${t('save')}</button>
+      <button class="primary" onclick="savePurchase('${id||''}')">${t('save')}</button>
     </div>`);
   renderPurchaseLines();
 }
@@ -1242,23 +1504,77 @@ function updatePurchaseTotal(){
   const el = document.getElementById('p-total');
   if(el) el.innerHTML = `${fmtUsd(total)} <small style="color:var(--muted);font-weight:400">${fmtSom(usdToSom(total))}</small>`;
 }
-function savePurchase(){
+function savePurchase(id){
+  const editing = id ? state.purchases.find(x=>x.id===id) : null;
   const supplierId = document.getElementById('p-sup').value;
   const date = document.getElementById('p-date').value || today();
+  const note = document.getElementById('p-note').value.trim();
   const valid = purchaseDraft.filter(l=>l.productId && l.qty>0);
   if(!valid.length){ alert(t('invalidAmount')); return;}
   const items = valid.map(l=>{
     const p = state.products.find(x=>x.id===l.productId);
-    const costUsd = isBoss() ? (Number(l.costUsd)||0) : (p.costUsd||0);
+    // Sellers can edit qty / supplier / note / date but not the cost — keep the existing per-item cost.
+    let costUsd;
+    if(isBoss()) costUsd = Number(l.costUsd)||0;
+    else if(editing){
+      const oldLine = (editing.items||[]).find(it=>it.productId===p.id);
+      costUsd = oldLine ? (Number(oldLine.costUsd)||0) : (Number(p.costUsd)||0);
+    } else costUsd = Number(p.costUsd)||0;
     return {productId:p.id, name:p.name, qty:l.qty, costUsd};
   });
   const totalUsd = items.reduce((s,i)=>s+i.qty*i.costUsd,0);
-  const purchase = {id:uid(), date, supplierId, items, totalUsd, note:document.getElementById('p-note').value.trim()};
-  state.purchases.push(purchase);
-  items.forEach(i=>{ const p=state.products.find(x=>x.id===i.productId); if(p) p.stock += i.qty;});
-  if(totalUsd>0){
-    const sup = state.suppliers.find(s=>s.id===supplierId);
-    state.expenses.push({id:uid(),date,type:'purchase',amountUsd:totalUsd,amountSom:0,supplierId,purchaseId:purchase.id,note:`${t('expense_purchase')}${sup?' — '+sup.name:''}`});
+  if(editing){
+    // Reverse the old stock adjustments so we can apply the new ones cleanly.
+    (editing.items||[]).forEach(i => {
+      const p = state.products.find(x=>x.id===i.productId);
+      if(!p) return;
+      const before = p.stock;
+      p.stock = Math.max(0, p.stock - (i.qty||0));
+      logStockChange(p.id, p.name, before, p.stock, `purchase edit (reverse old ×${i.qty})`);
+    });
+    // Apply the new stock adjustments.
+    items.forEach(i => {
+      const p = state.products.find(x=>x.id===i.productId);
+      if(!p) return;
+      const before = p.stock;
+      p.stock += i.qty;
+      logStockChange(p.id, p.name, before, p.stock, `purchase edit (new ×${i.qty})`);
+    });
+    Object.assign(editing, {
+      date, supplierId, items, totalUsd, note,
+      editedBy: role, editedAt: nowISO(),
+    });
+    // Update the linked expense (or create one if total just became non-zero).
+    const linkedExp = state.expenses.find(e => e.purchaseId === id);
+    if(linkedExp){
+      if(totalUsd > 0){
+        linkedExp.date = date;
+        linkedExp.amountUsd = totalUsd;
+        linkedExp.supplierId = supplierId;
+        const sup = state.suppliers.find(s=>s.id===supplierId);
+        linkedExp.note = `${t('expense_purchase')}${sup?' — '+sup.name:''}`;
+      } else {
+        // Total dropped to 0 — drop the expense entry too.
+        state.expenses = state.expenses.filter(e => e !== linkedExp);
+      }
+    } else if(totalUsd > 0){
+      const sup = state.suppliers.find(s=>s.id===supplierId);
+      state.expenses.push({id:uid(),date,type:'purchase',amountUsd:totalUsd,amountSom:0,supplierId,purchaseId:id,note:`${t('expense_purchase')}${sup?' — '+sup.name:''}`});
+    }
+  } else {
+    const purchase = {id:uid(), date, supplierId, items, totalUsd, note};
+    state.purchases.push(purchase);
+    items.forEach(i=>{
+      const p=state.products.find(x=>x.id===i.productId);
+      if(!p) return;
+      const before = p.stock;
+      p.stock += i.qty;
+      logStockChange(p.id, p.name, before, p.stock, `purchase ×${i.qty}`);
+    });
+    if(totalUsd>0){
+      const sup = state.suppliers.find(s=>s.id===supplierId);
+      state.expenses.push({id:uid(),date,type:'purchase',amountUsd:totalUsd,amountSom:0,supplierId,purchaseId:purchase.id,note:`${t('expense_purchase')}${sup?' — '+sup.name:''}`});
+    }
   }
   save(); closeModal();
   alert(t('purchaseSaved'));
@@ -1280,16 +1596,14 @@ function viewSales(){
   const rows = sorted.map(s=>`<tr>
       <td>${new Date(s.date).toLocaleString()}</td>
       <td style="max-width:320px">${s.items.map(i=>escapeHtml(i.name)+' ×'+i.qty).join(', ')}</td>
-      <td>${fmtUsd(s.totalUsd)}</td>
+      <td>${fmtUsd(s.totalUsd)}<br><span style="color:var(--muted);font-size:11px">${fmtSom(usdToSom(s.totalUsd))}</span></td>
       <td>${fmtUsd(s.paidUsd)}</td>
       <td>${fmtSom(s.paidSom)}</td>
     </tr>`).join('');
   const kpis = isBoss() ? `
     <div class="row">
       <div class="kpi"><div class="l">${t('salesCount')}</div><div class="v">${sorted.length}</div></div>
-      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v">${fmtUsd(totalUsd)}</div></div>
-      <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(paidUsd)}</div></div>
-      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(paidSom)}</div></div>
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(paidSom, paidUsd, {color:'var(--pos)'})}</div></div>
     </div>` : `
     <div class="card" style="display:flex;justify-content:space-between;align-items:center">
       <div>${t('salesCount')}: <b>${sorted.length}</b></div>
@@ -1313,16 +1627,21 @@ function viewExpenses(){
   const all = [...state.expenses]
     .filter(isExpenseVisible)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const totalUsd = all.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
-  const byType = {};
-  visibleExpenseTypes().forEach(tp=>byType[tp]=0);
-  all.forEach(e=>{ byType[e.type] = (byType[e.type]||0) + (e.amountUsd||0) + somToUsd(e.amountSom||0);});
-  const kpis = Object.entries(byType).filter(([,v])=>v>0).map(([tp,v])=>{
+  // Sum each currency SEPARATELY — show what actually left the cashier in each currency,
+  // never collapsed into a single converted number.
+  const totalUsd = all.reduce((s,e)=>s+(e.amountUsd||0),0);
+  const totalSom = all.reduce((s,e)=>s+(e.amountSom||0),0);
+  const byTypeUsd = {}, byTypeSom = {};
+  visibleExpenseTypes().forEach(tp=>{ byTypeUsd[tp]=0; byTypeSom[tp]=0; });
+  all.forEach(e=>{
+    byTypeUsd[e.type] = (byTypeUsd[e.type]||0) + (e.amountUsd||0);
+    byTypeSom[e.type] = (byTypeSom[e.type]||0) + (e.amountSom||0);
+  });
+  const kpis = Object.keys(byTypeUsd).filter(tp => byTypeUsd[tp]>0 || byTypeSom[tp]>0).map(tp => {
     const active = expenseFilter===tp ? 'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset' : '';
     return `<div class="kpi" onclick="setExpenseFilter('${tp}')" style="cursor:pointer;${active}">
       <div class="l"><span class="chip exp-${tp}">${t('expense_'+tp)}</span></div>
-      <div class="v" style="margin-top:6px">${fmtUsd(v)}</div>
-      <div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(v))}</div>
+      <div style="margin-top:6px">${fmtTwoCurrencyStack(byTypeSom[tp], byTypeUsd[tp])}</div>
     </div>`;
   }).join('');
   const filterOpts = `<option value="">${t('allTypes')}</option>` + visibleExpenseTypes().map(tp=>`<option value="${tp}" ${expenseFilter===tp?'selected':''}>${t('expense_'+tp)}</option>`).join('');
@@ -1330,8 +1649,7 @@ function viewExpenses(){
     <div class="row">
       <div class="kpi" onclick="setExpenseFilter('')" style="cursor:pointer;${!expenseFilter?'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset':''}">
         <div class="l">${t('totalExpenses')}</div>
-        <div class="v">${fmtUsd(totalUsd)}</div>
-        <div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(totalUsd))}</div>
+        <div style="margin-top:6px">${fmtTwoCurrencyStack(totalSom, totalUsd)}</div>
       </div>
       ${kpis}
     </div>
@@ -1351,60 +1669,107 @@ function renderExpensesList(){
     .filter(isExpenseVisible)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const list = expenseFilter ? all.filter(e=>e.type===expenseFilter) : all;
-  const filterUsdSum = list.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  // Real cash totals — kept per currency, never converted into a single number.
+  const sumUsd = list.reduce((s,e)=>s+(e.amountUsd||0),0);
+  const sumSom = list.reduce((s,e)=>s+(e.amountSom||0),0);
+  const muted = `<span style="color:var(--muted)">—</span>`;
   const rows = list.map(e=>{
-    const totalUsdRow = (e.amountUsd||0)+somToUsd(e.amountSom||0);
+    const editBtn = e.type === 'purchase'
+      ? ''
+      : `<button onclick="openExpense('${e.id}')">${t('edit')}</button>`;
     return `<tr>
       <td>${e.date}</td>
       <td><span class="chip exp-${e.type}">${t('expense_'+e.type)}</span></td>
-      <td>${fmtUsd(e.amountUsd||0)}</td>
-      <td>${fmtSom(e.amountSom||0)}</td>
-      <td><b>${fmtUsd(totalUsdRow)}</b><br><small style="color:var(--muted)">${fmtSom(usdToSom(totalUsdRow))}</small></td>
+      <td>${(e.amountUsd||0)>0 ? `<b>${fmtUsd(e.amountUsd||0)}</b>` : muted}</td>
+      <td>${(e.amountSom||0)>0 ? `<b>${fmtSom(e.amountSom||0)}</b>` : muted}</td>
       <td>${escapeHtml(e.note||'')}</td>
-      <td style="text-align:right"><button class="danger" onclick="delExpense('${e.id}')">${t('del')}</button></td>
+      <td style="text-align:right;white-space:nowrap">${editBtn}<button class="danger" onclick="delExpense('${e.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
+  // Compose the running-sum line; show only the currencies that have non-zero totals.
+  const sumParts = [];
+  if(sumSom>0) sumParts.push(`<b>${fmtSom(sumSom)}</b>`);
+  if(sumUsd>0) sumParts.push(`<b>${fmtUsd(sumUsd)}</b>`);
+  const sumLine = sumParts.length
+    ? sumParts.join(' <span style="color:var(--muted);margin:0 4px">·</span> ')
+    : `<span style="color:var(--muted)">—</span>`;
   document.getElementById('exp-list').innerHTML = `
-    <div class="card" style="padding:8px 14px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center;border-radius:10px 10px 0 0">
+    <div class="card" style="padding:8px 14px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">
       <div>${t('expenseEntries')}: <b>${list.length}</b>${expenseFilter?` <span class="chip exp-${expenseFilter}">${t('expense_'+expenseFilter)}</span>`:''}</div>
-      <div><b>${fmtUsd(filterUsdSum)}</b> <span style="color:var(--muted)">· ${fmtSom(usdToSom(filterUsdSum))}</span></div>
+      <div>${sumLine}</div>
     </div>
     <div class="card" style="padding:0;border-radius:0 0 10px 10px;border-top:none">
     <table>
-      <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>USD</th><th>${t('paidSom')}</th><th>${t('totalUsd')}</th><th>${t('note')}</th><th></th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+      <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>USD</th><th>${t('paidSom')}</th><th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
 }
-function openExpense(){
-  const typeOpts = visibleExpenseTypes().map(tp=>`<option value="${tp}">${t('expense_'+tp)}</option>`).join('');
-  const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+function openExpense(id){
+  const editing = id ? state.expenses.find(x=>x.id===id) : null;
+  const typeOpts = visibleExpenseTypes().map(tp=>{
+    const sel = editing && editing.type===tp ? ' selected' : '';
+    return `<option value="${tp}"${sel}>${t('expense_'+tp)}</option>`;
+  }).join('');
   modal(`
-    <h3>${t('newExpense')}</h3>
-    <label>${t('date')}</label><input id="e-date" type="date" value="${today()}">
-    <label style="margin-top:10px">${t('expType')}</label><select id="e-type">${typeOpts}</select>
+    <h3>${editing ? t('editExpense') : t('newExpense')}</h3>
+    <label>${t('date')}</label><input id="e-date" type="date" value="${editing?editing.date:today()}">
+    <label style="margin-top:10px">${t('expType')}</label><select id="e-type" onchange="renderExpenseExtras()">${typeOpts}</select>
     <div class="row" style="margin-top:10px">
-      <div class="col"><label>USD</label><input id="e-usd" type="number" step="0.01" value="0"></div>
-      <div class="col"><label>SOM</label><input id="e-som" type="number" step="1" value="0" oninput="updateSomHint('e-som','e-som-hint')"><small id="e-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>USD</label><input id="e-usd" type="number" step="0.01" value="${editing?(editing.amountUsd||0):0}"></div>
+      <div class="col"><label>SOM</label><input id="e-som" type="number" step="1" value="${editing?(editing.amountSom||0):0}" oninput="updateSomHint('e-som','e-som-hint')"><small id="e-som-hint" style="color:var(--muted);font-size:11px"></small></div>
     </div>
-    <label style="margin-top:10px">${t('expSupOpt')}</label>
-    <select id="e-sup">${supOpts}</select>
+    <div id="e-extras"></div>
     <label style="margin-top:10px">${t('note')}</label>
-    <textarea id="e-note" rows="2"></textarea>
+    <textarea id="e-note" rows="2">${editing?escapeHtml(editing.note||''):''}</textarea>
     <div class="modal-actions">
       <button onclick="closeModal()">${t('cancel')}</button>
-      <button class="primary" onclick="saveExpense()">${t('save')}</button>
+      <button class="primary" onclick="saveExpense('${id||''}')">${t('save')}</button>
     </div>`);
+  renderExpenseExtras(editing?.installerId);
 }
-function saveExpense(){
+function renderExpenseExtras(preselectInstallerId){
+  const box = document.getElementById('e-extras'); if(!box) return;
+  const type = document.getElementById('e-type')?.value;
+  if(type !== 'installation_pay'){ box.innerHTML = ''; return;}
+  if(!state.installers.length){
+    box.innerHTML = `<div style="margin-top:10px;padding:10px;background:#5a2a2e;color:#ffb4b4;border-radius:6px;font-size:13px">${t('addInstallerFirstForExp')}</div>`;
+    return;
+  }
+  const opts = state.installers.map(i=>{
+    const sel = preselectInstallerId && i.id===preselectInstallerId ? ' selected' : '';
+    return `<option value="${i.id}"${sel}>${escapeHtml(i.name)}</option>`;
+  }).join('');
+  box.innerHTML = `
+    <label style="margin-top:10px">${t('installerCol')} <span style="color:var(--neg)">*</span></label>
+    <select id="e-installer" required>${opts}</select>`;
+}
+function saveExpense(id){
   const amountUsd = Number(document.getElementById('e-usd').value)||0;
   const amountSom = Number(document.getElementById('e-som').value)||0;
   if(amountUsd<=0 && amountSom<=0){ alert(t('invalidAmount')); return;}
-  state.expenses.push({
-    id:uid(), date:document.getElementById('e-date').value||today(),
-    type:document.getElementById('e-type').value, amountUsd, amountSom,
-    supplierId: document.getElementById('e-sup').value,
-    note: document.getElementById('e-note').value.trim(),
-  });
+  const type = document.getElementById('e-type').value;
+  const date = document.getElementById('e-date').value||today();
+  const note = document.getElementById('e-note').value.trim();
+  let installerId = null;
+  if(type === 'installation_pay'){
+    installerId = document.getElementById('e-installer')?.value || '';
+    if(!installerId){ alert(t('pickInstallerRequired')); return;}
+  }
+  if(id){
+    const existing = state.expenses.find(x=>x.id===id);
+    if(!existing){ alert(t('noData')); return;}
+    existing.date = date;
+    existing.type = type;
+    existing.amountUsd = amountUsd;
+    existing.amountSom = amountSom;
+    existing.note = note;
+    if(installerId) existing.installerId = installerId;
+    else delete existing.installerId;
+  } else {
+    const exp = {id:uid(), date, type, amountUsd, amountSom, note};
+    if(installerId) exp.installerId = installerId;
+    state.expenses.push(exp);
+  }
   save(); closeModal(); viewExpenses();
 }
 function delExpense(id){ if(!confirm(t('confirmDelete'))) return; state.expenses = state.expenses.filter(x=>x.id!==id); save(); viewExpenses();}
@@ -1513,36 +1878,75 @@ function saveInstaller(id){
 function delInstaller(id){ if(!confirm(t('confirmDelete'))) return; state.installers = state.installers.filter(x=>x.id!==id); save(); viewInstallers();}
 
 /* =================== INSTALL JOBS =================== */
+let installsRange = {from:'', to:''};
+function setInstallsPreset(preset){
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  if(preset==='today'){ installsRange = {from:today, to:today};}
+  else if(preset==='7'){ const d=new Date(now); d.setDate(d.getDate()-7); installsRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='30'){ const d=new Date(now); d.setDate(d.getDate()-30); installsRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='month'){ const d=new Date(now.getFullYear(), now.getMonth(), 1); installsRange={from:d.toISOString().slice(0,10), to:today};}
+  else if(preset==='all'){ installsRange={from:'', to:''};}
+  viewInstalls();
+}
+function readInstallsInputs(){
+  const f = document.getElementById('inst-from')?.value || '';
+  const tt = document.getElementById('inst-to')?.value || '';
+  installsRange = {from:f, to:tt};
+  viewInstalls();
+}
+function inInstallsRange(date){
+  const d = (date||'').slice(0,10);
+  if(installsRange.from && d < installsRange.from) return false;
+  if(installsRange.to && d > installsRange.to) return false;
+  return true;
+}
 function viewInstalls(){
-  const sorted = [...state.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const rows = sorted.map(j=>{
+  const filtered = state.installs
+    .filter(j => inInstallsRange(j.date))
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  // Real-cash sums per currency, separately, never converted into a single number.
+  const sumChargedSom = filtered.reduce((s,j)=>s+(j.amountSom||0), 0);
+  const sumChargedUsd = filtered.reduce((s,j)=>s+(j.amountUsd||0), 0);
+  const sumPaidSom = filtered.reduce((s,j)=>s+installerPaySomTotal(j), 0);
+  const sumPaidUsd = filtered.reduce((s,j)=>s+installerPayUsdTotal(j), 0);
+  const moneyKpis = isBoss() ? `
+    <div class="row" style="margin-top:12px">
+      <div class="kpi"><div class="l">${t('charged')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumChargedSom, sumChargedUsd, {color:'var(--pos)'})}</div></div>
+      <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumPaidSom, sumPaidUsd, {color:'var(--neg)'})}</div></div>
+    </div>` : '';
+  const rows = filtered.map(j=>{
     const assigns = jobInstallers(j);
     const installersHtml = assigns.map(a=>{
       const inst = state.installers.find(i=>i.id===a.installerId);
-      const u = a.paidUsd||0, s = a.paidSom||0;
-      const payParts = [];
-      if(u>0) payParts.push(fmtUsd(u));
-      if(s>0) payParts.push(fmtSom(s));
-      const payStr = payParts.length ? ` <small style="color:var(--muted)">(${payParts.join(' + ')})</small>` : '';
-      return `<div><b>${inst?escapeHtml(inst.name):'?'}</b>${payStr}</div>`;
+      return `<div><b>${inst?escapeHtml(inst.name):'?'}</b></div>`;
     }).join('');
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
-    const payTotal = installerPayUsd(j);
     return `<tr>
       <td>${j.date}</td>
       <td>${installersHtml||'<span style="color:var(--muted)">—</span>'}</td>
       <td style="max-width:260px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
-      <td>${fmtUsd(j.amountUsd||0)}<br><small style="color:var(--muted)">${fmtSom(j.amountSom||0)}</small></td>
-      <td><b>${fmtUsd(payTotal)}</b></td>
+      <td>${fmtDualPay(j.amountSom||0, j.amountUsd||0)}</td>
+      <td>${fmtDualPay(installerPaySomTotal(j), installerPayUsdTotal(j))}</td>
       <td>${escapeHtml(j.note||'')}</td>
       <td style="text-align:right"><button class="danger" onclick="delInstall('${j.id}')">${t('del')}</button></td>
     </tr>`;
   }).join('');
   V().innerHTML = `
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
-      <div>${t('totalJobs')}: <b>${state.installs.length}</b></div>
-      <button class="primary" onclick="openInstall()">${t('logJob')}</button>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>${t('totalJobs')}: <b>${filtered.length}</b></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <button onclick="setInstallsPreset('today')">${t('todayRange')}</button>
+        <button onclick="setInstallsPreset('7')">${t('last7')}</button>
+        <button onclick="setInstallsPreset('30')">${t('last30')}</button>
+        <button onclick="setInstallsPreset('all')">${t('allTime')}</button>
+        <input type="date" id="inst-from" value="${installsRange.from}" onchange="readInstallsInputs()" style="width:auto">
+        <span style="color:var(--muted)">→</span>
+        <input type="date" id="inst-to" value="${installsRange.to}" onchange="readInstallsInputs()" style="width:auto">
+        <button class="primary" onclick="openInstall()">${t('logJob')}</button>
+      </div>
     </div>
+    ${moneyKpis}
     <div class="card" style="padding:0">
     <table>
       <thead><tr><th>${t('date')}</th><th>${t('installersCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th><th>${t('note')}</th><th></th></tr></thead>
@@ -1554,7 +1958,7 @@ let installerDraft = [];
 function openInstall(){
   if(!state.installers.length){ alert(t('addSupplierFirst').replace('supplier','installer')); return;}
   installDraft = [];
-  installerDraft = [{installerId: state.installers[0].id, paidUsd:0, paidSom:0}];
+  installerDraft = [{installerId: state.installers[0].id}];
   const hasProducts = state.products.length>0;
   modal(`
     <h3>${t('logJob')}</h3>
@@ -1573,9 +1977,14 @@ function openInstall(){
       </div>
     `:`<div style="color:var(--muted);font-size:12px">${t('addProductFirst')}</div>`}
     <div class="row" style="margin-top:12px">
-      <div class="col"><label>${t('chargedUsd')}</label><input id="j-usd" type="number" step="0.01" value="0"></div>
       <div class="col"><label>${t('chargedSom')}</label><input id="j-som" type="number" step="1" value="0" oninput="updateSomHint('j-som','j-som-hint')"><small id="j-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('chargedUsd')}</label><input id="j-usd" type="number" step="0.01" value="0"></div>
     </div>
+    ${isBoss() ? `
+    <div class="row" style="margin-top:12px">
+      <div class="col"><label>${t('payToInstallerSom')}</label><input id="j-pay-som" type="number" step="1" value="0" oninput="updateSomHint('j-pay-som','j-pay-som-hint')"><small id="j-pay-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('payToInstaller')}</label><input id="j-pay-usd" type="number" step="0.01" value="0"></div>
+    </div>` : `<div style="margin-top:12px;padding:8px 10px;background:var(--panel2);border-radius:6px;color:var(--muted);font-size:12px">${t('sellerInstallerPayHint')}</div>`}
     <label style="margin-top:10px">${t('note')}</label>
     <textarea id="j-note" rows="2"></textarea>
     <div class="modal-actions">
@@ -1590,16 +1999,14 @@ function renderInstallerLines(){
   const box = document.getElementById('j-installers'); if(!box) return;
   const opts = state.installers.map(i=>`<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
   box.innerHTML = installerDraft.map((a,idx)=>`
-    <div style="display:grid;grid-template-columns:1.5fr 90px 110px 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px">
-      <select onchange="updateInstallerLine(${idx},'installerId',this.value)">${opts.replace(`value="${a.installerId}"`,`value="${a.installerId}" selected`)}</select>
-      <input type="number" step="0.01" min="0" value="${a.paidUsd||0}" onchange="updateInstallerLine(${idx},'paidUsd',this.value)" placeholder="USD">
-      <input type="number" step="1" min="0" value="${a.paidSom||0}" onchange="updateInstallerLine(${idx},'paidSom',this.value)" placeholder="SOM">
+    <div style="display:grid;grid-template-columns:1fr 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px">
+      <select onchange="updateInstallerLine(${idx},this.value)">${opts.replace(`value="${a.installerId}"`,`value="${a.installerId}" selected`)}</select>
       <button class="danger" onclick="removeInstallerLine(${idx})" style="padding:4px 8px" ${installerDraft.length<=1?'disabled style="opacity:.4;padding:4px 8px"':''}>×</button>
     </div>`).join('');
 }
 function addInstallerLine(){
   if(!state.installers.length) return;
-  installerDraft.push({installerId: state.installers[0].id, paidUsd:0, paidSom:0});
+  installerDraft.push({installerId: state.installers[0].id});
   renderInstallerLines();
 }
 function removeInstallerLine(idx){
@@ -1607,9 +2014,8 @@ function removeInstallerLine(idx){
   installerDraft.splice(idx,1);
   renderInstallerLines();
 }
-function updateInstallerLine(idx,field,val){
-  if(field==='paidUsd'||field==='paidSom') installerDraft[idx][field] = Number(val)||0;
-  else installerDraft[idx][field] = val;
+function updateInstallerLine(idx, installerId){
+  installerDraft[idx].installerId = installerId;
 }
 function renderInstallLines(){
   const box = document.getElementById('j-items'); if(!box) return;
@@ -1674,7 +2080,7 @@ function removeInstallLine(idx){ installDraft.splice(idx,1); renderInstallLines(
 function saveInstall(){
   const installerAssignments = installerDraft
     .filter(a => a.installerId)
-    .map(a => ({installerId:a.installerId, paidUsd:Number(a.paidUsd)||0, paidSom:Number(a.paidSom)||0}));
+    .map(a => ({installerId:a.installerId}));
   if(!installerAssignments.length){ alert(t('addSupplierFirst').replace('supplier','installer')); return;}
   const items = installDraft.filter(l=>l.productId && l.qty>0).map(l=>{
     const p = state.products.find(x=>x.id===l.productId);
@@ -1684,28 +2090,32 @@ function saveInstall(){
     const p = state.products.find(x=>x.id===it.productId);
     if(it.qty > p.stock){ alert(`${t('notEnoughStock')}: ${p.name} (${p.stock})`); return;}
   }
+  const payUsd = Number(document.getElementById('j-pay-usd')?.value)||0;
+  const paySom = Number(document.getElementById('j-pay-som')?.value)||0;
   const job = {
     id:uid(), date: document.getElementById('j-date').value||today(),
     installers: installerAssignments,
     items,
     amountUsd: Number(document.getElementById('j-usd').value)||0,
     amountSom: Number(document.getElementById('j-som').value)||0,
+    installerPayUsd: payUsd,
+    installerPaySom: paySom,
     note: document.getElementById('j-note').value.trim(),
   };
   state.installs.push(job);
   items.forEach(it=>{ const p = state.products.find(x=>x.id===it.productId); if(p) p.stock = Math.max(0, p.stock - it.qty);});
-  // Create one expense entry per installer that received pay
-  installerAssignments.forEach(a => {
-    if(a.paidUsd>0 || a.paidSom>0){
-      const inst = state.installers.find(i=>i.id===a.installerId);
-      state.expenses.push({
-        id:uid(), date:job.date, type:'installation_pay',
-        amountUsd:a.paidUsd, amountSom:a.paidSom,
-        installerId:a.installerId,
-        note:`${t('paidToInstaller')}: ${inst?inst.name:''}`
-      });
-    }
-  });
+  // Create a single expense entry for the whole job (pay is at job level now)
+  if(payUsd>0 || paySom>0){
+    const names = installerAssignments
+      .map(a => state.installers.find(i=>i.id===a.installerId)?.name || '')
+      .filter(Boolean).join(', ');
+    state.expenses.push({
+      id:uid(), date:job.date, type:'installation_pay',
+      amountUsd:payUsd, amountSom:paySom,
+      installerId: installerAssignments[0].installerId,
+      note:`${t('paidToInstaller')}: ${names}`
+    });
+  }
   save(); closeModal(); viewInstalls();
 }
 function delInstall(id){
@@ -1723,14 +2133,18 @@ function saleCOGS(sale){
   },0);
 }
 function viewDashboard(){
-  const totalRev = state.sales.reduce((s,x)=>s+x.totalUsd,0);
+  const installRev = j => (j.amountUsd||0) + somToUsd(j.amountSom||0);
+  const totalRev = state.sales.reduce((s,x)=>s+x.totalUsd,0)
+                 + state.installs.reduce((s,j)=>s+installRev(j),0);
   const totalExp = state.expenses.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const purchExp = state.expenses.filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const opExp = totalExp - purchExp;
   const cogs = state.sales.reduce((s,x)=>s+saleCOGS(x),0);
   const profit = totalRev - cogs - opExp;
-  const weekRev = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+x.totalUsd,0);
-  const monthRev = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+x.totalUsd,0);
+  const weekRev = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+x.totalUsd,0)
+                + state.installs.filter(j=>isWithinDays(j.date,7)).reduce((s,j)=>s+installRev(j),0);
+  const monthRev = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+x.totalUsd,0)
+                 + state.installs.filter(j=>isWithinDays(j.date,30)).reduce((s,j)=>s+installRev(j),0);
   const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const weekCogs = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+saleCOGS(x),0);
@@ -1755,10 +2169,10 @@ function viewDashboard(){
       <div class="kpi"><div class="l">${t('inventoryValue')}</div><div class="v">${fmtUsd(inventoryValue())}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(inventoryValue()))}</div></div>
     </div>
     <div class="row" style="margin-top:12px">
-      <div class="kpi"><div class="l">${t('thisWeekRE')}</div><div class="v" style="font-size:16px">${fmtUsd(weekRev)} <span style="color:var(--muted)">/ ${fmtUsd(weekExp)}</span></div><div style="color:${weekProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(weekProfit)}</div></div>
-      <div class="kpi"><div class="l">${t('thisMonthRE')}</div><div class="v" style="font-size:16px">${fmtUsd(monthRev)} <span style="color:var(--muted)">/ ${fmtUsd(monthExp)}</span></div><div style="color:${monthProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(monthProfit)}</div></div>
-      <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(state.sales.reduce((s,x)=>s+x.paidUsd,0))}</div></div>
-      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+x.paidSom,0))}</div></div>
+      <div class="kpi"><div class="l">${t('thisWeekRE')}</div><div class="v" style="font-size:16px">${fmtUsd(weekRev)} <span style="color:var(--muted)">/ ${fmtUsd(weekExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(weekRev))} / ${fmtSom(usdToSom(weekExp))}</div><div style="color:${weekProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(weekProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(weekProfit))})</span></div></div>
+      <div class="kpi"><div class="l">${t('thisMonthRE')}</div><div class="v" style="font-size:16px">${fmtUsd(monthRev)} <span style="color:var(--muted)">/ ${fmtUsd(monthExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(monthRev))} / ${fmtSom(usdToSom(monthExp))}</div><div style="color:${monthProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(monthProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(monthProfit))})</span></div></div>
+      <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(state.sales.reduce((s,x)=>s+(x.paidUsd||0),0) + state.installs.reduce((s,j)=>s+(j.amountUsd||0),0))}</div></div>
+      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+(x.paidSom||0),0) + state.installs.reduce((s,j)=>s+(j.amountSom||0),0))}</div></div>
     </div>
     <div class="row" style="margin-top:12px">
       <div class="kpi"><div class="l">${t('stockUnits')}</div><div class="v">${totalUnits}</div></div>
@@ -1785,7 +2199,7 @@ function viewDashboard(){
             return `<tr>
               <td>${new Date(s.date).toLocaleString()}</td>
               <td>${s.items.map(i=>escapeHtml(i.name)+'×'+i.qty).join(', ')}</td>
-              <td>${fmtUsd(s.totalUsd)}</td>
+              <td>${fmtUsd(s.totalUsd)}<br><span style="color:var(--muted);font-size:11px">${fmtSom(usdToSom(s.totalUsd))}</span></td>
               <td>${paidHtml}</td>
             </tr>`;
           }).join('') || `<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px">${t('noData')}</td></tr>`}
@@ -1799,14 +2213,13 @@ function viewDashboard(){
         <tbody>
           ${recentJobs.map(j=>{
             const names = jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');
-            const charged = (j.amountUsd||0) + somToUsd(j.amountSom||0);
             const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
             return `<tr>
               <td>${j.date}</td>
               <td><b>${names||'—'}</b></td>
               <td style="max-width:240px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
-              <td>${fmtUsd(charged)}</td>
-              <td style="color:var(--neg)">${fmtUsd(installerPayUsd(j))}</td>
+              <td>${fmtDualPay(j.amountSom||0, j.amountUsd||0)}</td>
+              <td>${fmtDualPay(installerPaySomTotal(j), installerPayUsdTotal(j))}</td>
             </tr>`;
           }).join('') || `<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px">${t('noData')}</td></tr>`}
         </tbody>
@@ -1881,9 +2294,19 @@ function archiveData(){
   const installs = state.installs.filter(j=>inRange(j.date));
   const expenses = state.expenses.filter(e=>inRange(e.date));
   const purchases = state.purchases.filter(p=>inRange(p.date));
-  const totalRev = sales.reduce((s,x)=>s+x.totalUsd,0);
+  const installRev = j => (j.amountUsd||0) + somToUsd(j.amountSom||0);
+  const totalRev = sales.reduce((s,x)=>s+x.totalUsd,0)
+                 + installs.reduce((s,j)=>s+installRev(j),0);
+  // Real cash received per currency in this period (sales + install jobs combined)
+  const totalRevUsd = sales.reduce((s,x)=>s+(x.paidUsd||0),0)
+                    + installs.reduce((s,j)=>s+(j.amountUsd||0),0);
+  const totalRevSom = sales.reduce((s,x)=>s+(x.paidSom||0),0)
+                    + installs.reduce((s,j)=>s+(j.amountSom||0),0);
   const cogs = sales.reduce((s,x)=>s+saleCOGS(x),0);
   const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  // Real cash out per currency in this period (op expenses only)
+  const opExpUsd = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0),0);
+  const opExpSom = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountSom||0),0);
   const profit = totalRev - cogs - opExp;
   const installerPayTotal = installs.reduce((s,j)=>s+installerPayUsd(j),0);
   const purchaseTotal = purchases.reduce((s,p)=>s+(p.totalUsd||0),0);
@@ -1895,7 +2318,7 @@ function archiveData(){
     soldMap[it.productId].revenue += it.priceUsd * it.qty;
   }));
   const productsSold = Object.values(soldMap).sort((a,b)=>b.qty-a.qty);
-  return {sales, installs, expenses, purchases, totalRev, cogs, opExp, profit, installerPayTotal, purchaseTotal, productsSold};
+  return {sales, installs, expenses, purchases, totalRev, totalRevUsd, totalRevSom, cogs, opExp, opExpUsd, opExpSom, profit, installerPayTotal, purchaseTotal, productsSold};
 }
 function viewArchive(){
   if(!archiveRange.from && !archiveRange.to){
@@ -1939,8 +2362,8 @@ function renderArchiveBody(){
       <td>${j.date}</td>
       <td><b>${names||'?'}</b></td>
       <td style="font-size:12px">${itemsStr||'—'}</td>
-      <td>${fmtUsd(j.amountUsd||0)} / ${fmtSom(j.amountSom||0)}</td>
-      <td style="color:var(--neg)">${fmtUsd(installerPayUsd(j))}</td>
+      <td>${fmtDualPay(j.amountSom||0, j.amountUsd||0)}</td>
+      <td>${fmtDualPay(installerPaySomTotal(j), installerPayUsdTotal(j))}</td>
     </tr>`;
   }).join('');
   const productRows = d.productsSold.map(p=>`<tr>
@@ -1950,9 +2373,9 @@ function renderArchiveBody(){
   </tr>`).join('');
   box.innerHTML = `
     <div class="row" style="margin-top:12px">
-      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v" style="color:var(--pos)">${fmtUsd(d.totalRev)}</div></div>
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(d.totalRevSom, d.totalRevUsd, {color:'var(--pos)'})}</div></div>
       <div class="kpi"><div class="l">${t('cogs')}</div><div class="v" style="color:var(--hi)">${fmtUsd(d.cogs)}</div></div>
-      <div class="kpi"><div class="l">${t('opExpenses')}</div><div class="v" style="color:var(--neg)">${fmtUsd(d.opExp)}</div></div>
+      <div class="kpi"><div class="l">${t('opExpenses')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(d.opExpSom, d.opExpUsd, {color:'var(--neg)'})}</div></div>
       <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${d.profit>=0?'var(--pos)':'var(--neg)'}">${fmtUsd(d.profit)}</div></div>
     </div>
     <div class="row">
@@ -1997,7 +2420,13 @@ function downloadArchiveHtml(){
   const range = (archiveRange.from||'—') + ' → ' + (archiveRange.to||'—');
   const productRows = d.productsSold.map(p=>`<tr><td><b>${escapeHtml(p.name)}</b></td><td>${p.qty}</td><td>${fmtUsd(p.revenue)}</td></tr>`).join('');
   const salesRows = [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>`<tr><td>${new Date(s.date).toLocaleString()}</td><td>${s.items.map(i=>escapeHtml(i.name)+'×'+i.qty).join(', ')}</td><td>${fmtUsd(s.totalUsd)}</td><td>${fmtUsd(s.paidUsd)}</td><td>${fmtSom(s.paidSom)}</td></tr>`).join('');
-  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td><b>${names||'?'}</b></td><td>${itemsStr||'—'}</td><td>${fmtUsd(j.amountUsd||0)} / ${fmtSom(j.amountSom||0)}</td><td class="neg">${fmtUsd(installerPayUsd(j))}</td></tr>`;}).join('');
+  const dualCell = (s,u)=>{
+    s=Number(s)||0; u=Number(u)||0;
+    if(s<=0 && u<=0) return `<span class="muted" style="font-size:11px">—</span>`;
+    if(s>0 && u>0) return `<div style="color:#1f7a3a;font-weight:700;font-size:15px">${fmtSom(s)}</div><div style="color:#1f7a3a;font-weight:600;font-size:13px">${fmtUsd(u)}</div>`;
+    return `<b>${s>0?fmtSom(s):fmtUsd(u)}</b>`;
+  };
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td><b>${names||'?'}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${dualCell(installerPaySomTotal(j), installerPayUsdTotal(j))}</td></tr>`;}).join('');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gazmetprod report ${range}</title><style>${css}</style></head><body>
     <h1>Gazmetprod — ${t('archive')}</h1>
     <div class="muted">${t('period')}: ${range} · ${t('generated')}: ${new Date().toLocaleString()}</div>
@@ -2155,9 +2584,10 @@ function viewSettings(){
       <h3 style="margin-top:0">${t('exchangeRate')}</h3>
       <p style="color:var(--muted)">${t('exchangeDesc')}</p>
       <div class="row">
-        <div class="col" style="max-width:240px"><label>1 USD =</label><input id="set-rate" type="number" step="1" value="${state.rate}"></div>
+        <div class="col" style="max-width:240px"><label>1 USD =</label><input id="set-rate" type="number" step="1" value="${state.rate}" oninput="renderRatePreview()"></div>
         <div style="align-self:flex-end"><button class="primary" onclick="saveRate()">${t('saveRate')}</button></div>
       </div>
+      <div id="rate-preview" style="margin-top:14px"></div>
     </div>
     <div class="card">
       <h3 style="margin-top:0">${t('dataBackup')}</h3>
@@ -2171,11 +2601,42 @@ function viewSettings(){
       <p style="color:var(--muted)">${t('dangerDesc')}</p>
       <button class="danger" onclick="wipeData()">${t('wipeAll')}</button>
     </div>`;
+  renderRatePreview();
+}
+function renderRatePreview(){
+  const box = document.getElementById('rate-preview'); if(!box) return;
+  const typed = Number(document.getElementById('set-rate')?.value) || state.rate;
+  if(!typed || typed<=0){ box.innerHTML = ''; return;}
+  const totalRev = (state.sales||[]).reduce((s,x)=>s+(x.totalUsd||0),0);
+  const cogs = (state.sales||[]).reduce((s,x)=>s+saleCOGS(x),0);
+  const totalExp = (state.expenses||[]).reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
+  const purchExp = (state.expenses||[]).filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
+  const opExp = totalExp - purchExp;
+  const profit = totalRev - cogs - opExp;
+  const inv = (state.products||[]).reduce((s,p)=>s+(p.costUsd||0)*(p.stock||0),0);
+  const changed = typed !== state.rate;
+  const tag = changed
+    ? `<span class="chip warn" style="margin-left:8px">${t('previewUnsaved')}</span>`
+    : `<span class="chip" style="margin-left:8px;background:var(--panel2);color:var(--muted)">${t('previewCurrent')}</span>`;
+  const fmtSomAt = u => Math.round((Number(u)||0) * typed).toLocaleString('en-US') + ' som';
+  box.innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px">
+      ${t('rateLivePreview')} (1 USD = ${typed.toLocaleString('en-US')} som) ${tag}
+    </div>
+    <div class="row">
+      <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v" style="color:var(--pos)">${fmtUsd(totalRev)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(totalRev)}</div></div>
+      <div class="kpi"><div class="l">${t('cogs')}</div><div class="v" style="color:var(--hi)">${fmtUsd(cogs)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(cogs)}</div></div>
+      <div class="kpi"><div class="l">${t('opExpenses')}</div><div class="v" style="color:var(--neg)">${fmtUsd(opExp)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(opExp)}</div></div>
+      <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${profit>=0?'#7ce38b':'#ffb4b4'}">${fmtUsd(profit)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(profit)}</div></div>
+      <div class="kpi"><div class="l">${t('inventoryValue')}</div><div class="v">${fmtUsd(inv)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(inv)}</div></div>
+    </div>`;
 }
 function saveRate(){
   const v = Number(document.getElementById('set-rate').value);
   if(!v || v<=0){ alert(t('invalidAmount')); return;}
-  state.rate = v; save(); updateRateLabel(); alert(t('save'));
+  state.rate = v; save(); updateRateLabel();
+  // Jump straight to the Dashboard so the boss sees the updated SOM picture immediately
+  goto('dash');
 }
 function exportData(){
   const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
