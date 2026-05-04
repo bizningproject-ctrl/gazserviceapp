@@ -36,7 +36,7 @@ db.exec(`
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK(role IN ('boss','seller'))
+    role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant'))
   );
   CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
@@ -44,6 +44,29 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
+
+// Older databases were created with CHECK(role IN ('boss','seller')) — extend to allow 'accountant'.
+(function migrateRoleConstraint(){
+  try {
+    db.prepare("INSERT INTO users (username,password_hash,role) VALUES (?,?,?)")
+      .run('__role_check_probe__', 'x', 'accountant');
+    db.prepare("DELETE FROM users WHERE username = ?").run('__role_check_probe__');
+  } catch(e){
+    console.log('Migrating users CHECK to allow accountant…');
+    db.exec(`
+      CREATE TABLE users_new (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        username      TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant'))
+      );
+      INSERT INTO users_new (id, username, password_hash, role)
+        SELECT id, username, password_hash, role FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+  }
+})();
 
 const DEFAULT_STATE = {
   rate: 12900, lang: 'en', theme: 'dark',
@@ -103,10 +126,16 @@ function migrateLegacy(){
 migrateLegacy();
 
 function seedUsers(){
-  if(stmt.allUsers.all().length > 0) return;
-  stmt.insertUser.run('boss',   bcrypt.hashSync('million', 10), 'boss');
-  stmt.insertUser.run('seller', bcrypt.hashSync('work',    10), 'seller');
-  console.log('Seeded default users:  boss / Million   seller / Work   (case-insensitive)');
+  // Seed each default user only if missing — keeps idempotent across restarts.
+  const ensure = (uname, pwd, role) => {
+    if(!stmt.userByName.get(uname)){
+      stmt.insertUser.run(uname, bcrypt.hashSync(pwd, 10), role);
+      console.log(`  + seeded ${role}/${uname} with password ${pwd}`);
+    }
+  };
+  ensure('boss',       'million', 'boss');
+  ensure('seller',     'work',    'seller');
+  ensure('accountant', 'check',   'accountant');
 }
 seedUsers();
 
@@ -136,6 +165,41 @@ function requireBoss(req, res, next){
 const app = express();
 app.use(express.json({limit:'10mb'}));
 app.use((req,res,next)=>{ res.setHeader('Cache-Control','no-store'); next(); });
+
+/* =================== LIVE SYNC (SSE) =================== */
+const sseClients = new Set();
+let lastBroadcastUpdatedAt = stateUpdatedAt() || '';
+function broadcastIfChanged(){
+  const cur = stateUpdatedAt() || '';
+  if(cur && cur !== lastBroadcastUpdatedAt){
+    lastBroadcastUpdatedAt = cur;
+    const payload = `event: update\ndata: ${JSON.stringify({updatedAt: cur})}\n\n`;
+    for(const r of sseClients){ try { r.write(payload); } catch(_){} }
+  }
+}
+// Cross-server detection: pick up writes made by other server instances sharing the DB
+setInterval(broadcastIfChanged, 500);
+// Heartbeat so idle connections don't get dropped by proxies
+setInterval(() => { for(const r of sseClients){ try { r.write(': ping\n\n'); } catch(_){} } }, 25000);
+
+function authQueryOrHeader(req, res, next){
+  const token = (req.query && req.query.token) || (req.headers.authorization||'').replace(/^Bearer\s+/i,'');
+  const s = sessions.get(token);
+  if(!s) return res.status(401).end();
+  if(Date.now() - s.createdAt > TOKEN_TTL){ sessions.delete(token); return res.status(401).end();}
+  req.user = s; next();
+}
+
+app.get('/api/events', authQueryOrHeader, (req, res) => {
+  res.setHeader('Content-Type','text/event-stream');
+  res.setHeader('Cache-Control','no-cache, no-transform');
+  res.setHeader('Connection','keep-alive');
+  res.setHeader('X-Accel-Buffering','no');
+  if(typeof res.flushHeaders === 'function') res.flushHeaders();
+  res.write(`event: hello\ndata: ${JSON.stringify({updatedAt: stateUpdatedAt()})}\n\n`);
+  sseClients.add(res);
+  req.on('close', () => { sseClients.delete(res); });
+});
 
 app.get('/api/health', (req, res) => res.json({ok:true}));
 
@@ -170,6 +234,7 @@ app.put('/api/state', authMW, (req, res) => {
   if(!data || typeof data !== 'object') return res.status(400).json({error:'bad payload'});
   saveState(data);
   res.json({ok:true, updatedAt: stateUpdatedAt()});
+  broadcastIfChanged();
 });
 
 /* Backup / Restore (boss) */
@@ -193,7 +258,7 @@ app.get('/api/users', authMW, requireBoss, (req, res) => {
 });
 app.post('/api/users', authMW, requireBoss, (req, res) => {
   const {username, password, role} = req.body || {};
-  if(!username || !password || !['boss','seller'].includes(role))
+  if(!username || !password || !['boss','seller','accountant'].includes(role))
     return res.status(400).json({error:'bad payload'});
   const uname = String(username).toLowerCase().trim();
   if(stmt.userByName.get(uname)) return res.status(400).json({error:'username exists'});
@@ -230,7 +295,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       if(net.family==='IPv4' && !net.internal) console.log(`  Network:  http://${net.address}:${PORT}`);
     }
   }
-  console.log('\nDefault logins:  boss / Million    seller / Work\n');
+  console.log('\nDefault logins:  boss / Million    seller / Work    accountant / Check\n');
 });
 
 function shutdown(sig){
