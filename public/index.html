@@ -264,6 +264,8 @@ const LOCALES = {
     anyCar:'— Any car —',
     unpaid:'Unpaid',
     paidTransfer:'Transfer',
+    notifNewApproval:'New transfer awaiting approval',
+    notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
     forInstall:'For install',
     carModel:'Car model',
@@ -376,6 +378,8 @@ const LOCALES = {
     anyCar:'— Любое авто —',
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление',
+    notifNewApproval:'Новое перечисление на проверку',
+    notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
     forInstall:'За установку',
     carModel:'Модель авто',
@@ -488,6 +492,8 @@ const LOCALES = {
     anyCar:"— Har qanday avto —",
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish",
+    notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
+    notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
     forInstall:"O'rnatish uchun",
     carModel:'Avto modeli',
@@ -630,6 +636,23 @@ async function syncToBackend(){
 /* ========== Live sync (Server-Sent Events) ========== */
 let evtSource = null;
 function closeEvents(){ if(evtSource){ try{evtSource.close();}catch(_){} evtSource = null; } }
+function pendingCount(){
+  return (state.sales||[]).filter(s=>s && s.approved===false).length
+       + (state.installs||[]).filter(j=>j && j.approved===false).length
+       + (state.expenses||[]).filter(e=>e && e.approved===false).length;
+}
+function notifyAccountant(delta){
+  if(typeof Notification === 'undefined') return;
+  if(Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(t('notifNewApproval'), {
+      body: t('notifBody').replace('{N}', String(delta)),
+      tag: 'sklad-approval',
+      requireInteraction: false
+    });
+    n.onclick = () => { try { window.focus(); } catch(_){} try { n.close(); } catch(_){} goto('approvals'); };
+  } catch(e){ /* notifications may be blocked or unsupported */ }
+}
 function openEvents(){
   if(!HAS_BACKEND || !authToken) return;
   closeEvents();
@@ -648,9 +671,14 @@ function openEvents(){
     try {
       const s = await apiFetch('GET','/api/state');
       if(s && s.data){
+        const beforePending = role==='accountant' ? pendingCount() : 0;
         state = {...structuredClone(DEFAULT_STATE), ...s.data};
         lastKnownUpdatedAt = s.updatedAt || upd;
         localStorage.setItem(KEY, JSON.stringify(state));
+        if(role==='accountant'){
+          const afterPending = pendingCount();
+          if(afterPending > beforePending) notifyAccountant(afterPending - beforePending);
+        }
         if(role) showApp();
       }
     } catch(err){ console.error('live sync fetch failed', err); }
@@ -908,6 +936,15 @@ function login(r){
   currentNav = nav[0].id;
   showApp();
   openEvents();
+  maybeRequestNotifications();
+}
+// Ask the accountant for desktop-notification permission so they get pinged when a transfer comes in.
+function maybeRequestNotifications(){
+  if(role !== 'accountant') return;
+  if(typeof Notification === 'undefined') return;
+  if(Notification.permission === 'default'){
+    try { Notification.requestPermission(); } catch(_){}
+  }
 }
 async function logout(){
   closeEvents();
@@ -1243,7 +1280,8 @@ function finalizeSale(){
     id:uid(), date:nowISO(), cashier:'user',
     items: lines.map(l=>({productId:l.productId, name:l.name, qty:l.qty, priceUsd:l.unitPriceUsd})),
     paidUsd, paidSom, paidTransfer, totalUsd: received,
-    approved: false
+    // Approval is only needed when bank transfer is involved — accountant verifies the wire arrived.
+    approved: !(paidTransfer > 0)
   });
   cart.forEach(it=>{
     const p = state.products.find(x=>x.id===it.productId);
@@ -1972,7 +2010,8 @@ function saveExpense(id){
     if(installId) existing.installId = installId;
     else delete existing.installId;
   } else {
-    const exp = {id:uid(), date, type, amountUsd, amountSom, note, approved:false};
+    // Expenses don't track wire transfers, so they're auto-approved (no accountant queue).
+    const exp = {id:uid(), date, type, amountUsd, amountSom, note, approved:true};
     if(installerId) exp.installerId = installerId;
     if(installId) exp.installId = installId;
     state.expenses.push(exp);
@@ -2470,8 +2509,11 @@ function saveInstall(){
     editing.amountSom = amountSom;
     editing.amountTransfer = amountTransfer;
     editing.note = note;
+    // Re-evaluate approval state: any transfer in the install requires re-approval.
+    editing.approved = !(amountTransfer > 0);
+    if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, note, approved:false};
+    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, note, approved: !(amountTransfer > 0)};
     state.installs.push(job);
     items.forEach(it=>{
       const p = state.products.find(x=>x.id===it.productId);
@@ -3306,6 +3348,7 @@ setLangButtons();
         if(!nav.find(n=>n.id===currentNav)) currentNav = nav[0]?.id || 'pos';
         showApp();
         openEvents();
+        maybeRequestNotifications();
         return;
       }catch(e){
         // token invalid - show login
