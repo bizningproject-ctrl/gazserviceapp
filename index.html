@@ -285,8 +285,10 @@ const LOCALES = {
     rateLivePreview:'Live preview at this rate', previewUnsaved:'Unsaved', previewCurrent:'Current rate',
     backupDesc:'Export all data as JSON, or import from a previous export.',
     exportJson:'Export JSON', importJson:'Import JSON',
-    dangerZone:'Danger zone', dangerDesc:'Wipe all local data. Cannot be undone.',
-    wipeAll:'Wipe all data',
+    dangerZone:'Danger zone', dangerDesc:'Zero out all transactions. The previous data is kept as a snapshot you can restore from "Old data".',
+    wipeAll:'Wipe all data', oldData:'Old data', restoreOld:'Restore old data',
+    noArchive:'No archived data to restore.', confirmRestoreOld:'Restore the previously wiped data? Current transactions will be replaced.',
+    archivedFrom:'Archive from', wipeDone:'Transactions cleared. Old data archived.',
     invalidAmount:'Enter an amount', confirmReplace:'Replace current data with imported file?',
     invalidFile:'Invalid file', confirmWipe:'Wipe ALL data?', reallyWipe:'Really? This cannot be undone.',
     underpayment:'Underpayment of', recordAnyway:'. Record anyway?',
@@ -400,7 +402,9 @@ const LOCALES = {
     backupDesc:'Экспорт всех данных в JSON или импорт из файла.',
     exportJson:'Экспорт JSON', importJson:'Импорт JSON',
     dangerZone:'Опасная зона', dangerDesc:'Удалить все локальные данные. Необратимо.',
-    wipeAll:'Удалить все данные',
+    wipeAll:'Удалить все данные', oldData:'Старые данные', restoreOld:'Восстановить старые',
+    noArchive:'Нет архивных данных для восстановления.', confirmRestoreOld:'Восстановить предыдущие данные? Текущие транзакции будут заменены.',
+    archivedFrom:'Архив от', wipeDone:'Транзакции обнулены. Старые данные сохранены в архив.',
     invalidAmount:'Введите сумму', confirmReplace:'Заменить текущие данные импортированными?',
     invalidFile:'Неверный файл', confirmWipe:'Удалить ВСЕ данные?', reallyWipe:'Точно? Это нельзя отменить.',
     underpayment:'Недоплата', recordAnyway:'. Записать всё равно?',
@@ -514,7 +518,9 @@ const LOCALES = {
     backupDesc:"Hamma ma'lumotni JSON sifatida saqlash yoki yuklash.",
     exportJson:'JSON eksport', importJson:'JSON import',
     dangerZone:'Xavfli hudud', dangerDesc:"Hamma mahalliy ma'lumotni o'chirish. Qaytarib bo'lmaydi.",
-    wipeAll:"Hamma ma'lumotni o'chirish",
+    wipeAll:"Hamma ma'lumotni o'chirish", oldData:"Eski ma'lumotlar", restoreOld:"Eski ma'lumotlarni tiklash",
+    noArchive:"Tiklash uchun arxiv ma'lumotlari yo'q.", confirmRestoreOld:"Avvalgi ma'lumotlarni tiklash? Joriy tranzaksiyalar almashtiriladi.",
+    archivedFrom:'Arxiv sanasi', wipeDone:"Tranzaksiyalar tozalandi. Eski ma'lumotlar arxivga olindi.",
     invalidAmount:'Summa kiriting', confirmReplace:"Joriy ma'lumotlarni almashtirish?",
     invalidFile:"Noto'g'ri fayl", confirmWipe:"HAMMA ma'lumotni o'chirish?", reallyWipe:"Aniqmi? Buni qaytarib bo'lmaydi.",
     underpayment:'Kam tolandi:', recordAnyway:'. Baribir saqlansinmi?',
@@ -3134,7 +3140,13 @@ function viewSettings(){
     <div class="card" style="border-color:#5a2a2e">
       <h3 style="margin-top:0;color:var(--neg)">${t('dangerZone')}</h3>
       <p style="color:var(--muted)">${t('dangerDesc')}</p>
-      <button class="danger" onclick="wipeData()">${t('wipeAll')}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="danger" onclick="wipeData()">${t('wipeAll')}</button>
+        ${state._archive
+          ? `<button onclick="restoreOldData()">${t('restoreOld')}</button>
+             <span style="color:var(--muted);font-size:12px">${t('archivedFrom')}: ${(state._archive.snapshotAt||'').slice(0,16).replace('T',' ')}</span>`
+          : `<button disabled style="opacity:.4;cursor:not-allowed">${t('oldData')}</button>`}
+      </div>
     </div>`;
   renderRatePreview();
 }
@@ -3196,7 +3208,44 @@ function importData(e){
 function wipeData(){
   if(!confirm(t('confirmWipe'))) return;
   if(!confirm(t('reallyWipe'))) return;
-  localStorage.removeItem(KEY); state = load(); updateRateLabel(); viewSettings();
+  // Snapshot the transactional data BEFORE wiping so the user can restore via "Old data".
+  state._archive = {
+    snapshotAt: nowISO(),
+    sales: state.sales || [],
+    purchases: state.purchases || [],
+    installs: state.installs || [],
+    expenses: state.expenses || [],
+    stockLogs: state.stockLogs || [],
+    defectives: state.defectives || [],
+    products: (state.products || []).map(p => ({...p})), // includes original stock per product
+  };
+  state.sales = [];
+  state.purchases = [];
+  state.installs = [];
+  state.expenses = [];
+  state.stockLogs = [];
+  state.defectives = [];
+  state.products = (state.products || []).map(p => ({...p, stock: 0}));
+  save();
+  updateRateLabel();
+  alert(t('wipeDone'));
+  viewSettings();
+}
+function restoreOldData(){
+  if(!state._archive){ alert(t('noArchive')); return; }
+  if(!confirm(t('confirmRestoreOld'))) return;
+  const a = state._archive;
+  state.sales      = Array.isArray(a.sales)      ? a.sales      : [];
+  state.purchases  = Array.isArray(a.purchases)  ? a.purchases  : [];
+  state.installs   = Array.isArray(a.installs)   ? a.installs   : [];
+  state.expenses   = Array.isArray(a.expenses)   ? a.expenses   : [];
+  state.stockLogs  = Array.isArray(a.stockLogs)  ? a.stockLogs  : [];
+  state.defectives = Array.isArray(a.defectives) ? a.defectives : [];
+  if(Array.isArray(a.products)) state.products = a.products.map(p => ({...p}));
+  delete state._archive;
+  save();
+  updateRateLabel();
+  viewSettings();
 }
 
 /* =================== USERS (boss only) =================== */
