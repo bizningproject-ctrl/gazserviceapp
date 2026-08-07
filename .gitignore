@@ -8,6 +8,10 @@ data/
 *.db-wal
 *.db-shm
 
+# JSON backups exported from the app — real warehouse data, keep out of the repo
+backup-*.json
+gazmetprod-backup-*.json
+
 # Env / OS
 .env
 .env.*

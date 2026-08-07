@@ -77,6 +77,24 @@
   html[data-theme="light"] tr.unpaid{background:rgba(220,38,38,0.06)}
   html[data-theme="light"] tr.unpaid:hover{background:rgba(220,38,38,0.12)}
 
+  /* Day separator inside history tables — groups rows belonging to the same date */
+  tr.day-row > td{
+    background:var(--bg);
+    border-top:2px solid var(--accent);
+    border-bottom:1px solid var(--line);
+    padding:8px 10px;
+    position:sticky; top:0;
+  }
+  tr.day-row:first-child > td{border-top:none}
+  tr.day-row:hover > td{background:var(--bg)}
+  .day-date{font-weight:800;font-size:13px;letter-spacing:.2px;text-transform:capitalize;color:var(--accent)}
+  .day-meta{
+    margin-left:14px;font-size:11px;color:var(--muted);
+    padding:2px 8px;border:1px solid var(--line);border-radius:20px;white-space:nowrap;
+    display:inline-block;
+  }
+  .day-meta b{color:var(--text)}
+
   .app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
   .sidebar{background:var(--sidebar-bg);border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:4px}
   .brand{font-weight:800;letter-spacing:.5px;margin-bottom:12px;font-size:16px;display:flex;align-items:center;gap:10px}
@@ -263,7 +281,8 @@ const LOCALES = {
     close:'Close',
     anyCar:'— Any car —',
     unpaid:'Unpaid',
-    paidTransfer:'Transfer',
+    paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
+    yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -309,6 +328,8 @@ const LOCALES = {
     archive:'Archive', period:'Period', from:'From', to:'To',
     last7:'Last 7 days', last30:'Last 30 days', thisMonthRange:'This month', allTime:'All time', todayRange:'Today',
     downloadHtml:'Download report (HTML)', printReport:'Print',
+    downloadExcel:'Download Excel (.xlsx)', payMethod:'Payment type',
+    payCashUsd:'USD cash', payCashSom:'SOM cash', expTypeCol:'Type',
     summary:'Summary', soldItems:'Sold items', installersSection:'Install jobs in period',
     productsSold:'Products sold', totalQty:'Total qty', generated:'Generated',
     defectives:'Defective items', markDefective:'Mark defective', defectiveBtn:'Defective',
@@ -379,7 +400,8 @@ const LOCALES = {
     close:'Закрыть',
     anyCar:'— Любое авто —',
     unpaid:'Не оплачено',
-    paidTransfer:'Перечисление',
+    paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
+    yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -425,6 +447,8 @@ const LOCALES = {
     archive:'Архив', period:'Период', from:'С', to:'По',
     last7:'7 дней', last30:'30 дней', thisMonthRange:'Этот месяц', allTime:'Всё время', todayRange:'Сегодня',
     downloadHtml:'Скачать отчёт (HTML)', printReport:'Печать',
+    downloadExcel:'Скачать Excel (.xlsx)', payMethod:'Тип оплаты',
+    payCashUsd:'Наличные USD', payCashSom:'Наличные сумы', expTypeCol:'Тип',
     summary:'Сводка', soldItems:'Проданные товары', installersSection:'Установки за период',
     productsSold:'Продано', totalQty:'Всего шт.', generated:'Создан',
     defectives:'Брак', markDefective:'Отметить брак', defectiveBtn:'Брак',
@@ -495,7 +519,8 @@ const LOCALES = {
     close:'Yopish',
     anyCar:"— Har qanday avto —",
     unpaid:"To'lanmagan",
-    paidTransfer:"Pul o'tkazish",
+    paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
+    yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -541,6 +566,8 @@ const LOCALES = {
     archive:'Arxiv', period:'Davr', from:'Dan', to:'Gacha',
     last7:'7 kun', last30:'30 kun', thisMonthRange:'Shu oy', allTime:'Barcha vaqt', todayRange:'Bugun',
     downloadHtml:'Hisobotni yuklash (HTML)', printReport:'Chop etish',
+    downloadExcel:'Excel yuklash (.xlsx)', payMethod:"To'lov turi",
+    payCashUsd:'Naqd USD', payCashSom:'Naqd som', expTypeCol:'Turi',
     summary:'Xulosa', soldItems:'Sotilgan tovarlar', installersSection:"Davrdagi o'rnatishlar",
     productsSold:'Sotilgan', totalQty:'Jami dona', generated:'Yaratilgan',
     defectives:'Brak', markDefective:'Brakni belgilash', defectiveBtn:'Brak',
@@ -752,6 +779,19 @@ const nowISO = () => new Date().toISOString();
 const fmtUsd = v => '$' + (Number(v)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtSom = v => Math.round(Number(v)||0).toLocaleString('en-US') + ' som';
 const fmtNum = v => Math.round(Number(v)||0).toLocaleString('en-US');
+// "3 августа 2026, вторник" — used by the day separator rows in the lists.
+function fmtDayLong(day){
+  if(!day) return t('noDate');
+  const d = new Date(day + 'T00:00:00');
+  if(isNaN(d)) return day;
+  const loc = state.lang === 'ru' ? 'ru-RU' : (state.lang === 'uz' ? 'uz-UZ' : 'en-GB');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((today - d) / 86400000);
+  const label = d.toLocaleDateString(loc, {day:'numeric', month:'long', year:'numeric', weekday:'long'});
+  if(diff === 0) return t('todayRange') + ' · ' + label;
+  if(diff === 1) return t('yesterday') + ' · ' + label;
+  return label;
+}
 function updateSomHint(inputId, hintId){
   const inp = document.getElementById(inputId), hint = document.getElementById(hintId);
   if(!inp || !hint) return;
@@ -1083,6 +1123,8 @@ function viewPOS(){
             </div>
             <div class="row" style="margin-top:8px">
               <div class="col"><label>${t('paidTransfer')} (SOM)</label><input id="pay-trans" type="number" step="1" value="0" oninput="recalcPay();updateSomHint('pay-trans','pay-trans-hint')"><small id="pay-trans-hint" style="color:var(--muted);font-size:11px"></small></div>
+              <div class="col"><label>${t('paidClick')} (SOM)</label><input id="pay-click" type="number" step="1" value="0" oninput="recalcPay();updateSomHint('pay-click','pay-click-hint')"><small id="pay-click-hint" style="color:var(--muted);font-size:11px"></small></div>
+              <div class="col"><label>${t('paidTerminal')} (SOM)</label><input id="pay-term" type="number" step="1" value="0" oninput="recalcPay();updateSomHint('pay-term','pay-term-hint')"><small id="pay-term-hint" style="color:var(--muted);font-size:11px"></small></div>
             </div>
             <div id="pay-status" style="margin-top:8px;font-size:13px"></div>
             <div style="display:flex;gap:6px;margin-top:8px">
@@ -1193,7 +1235,9 @@ function recalcPay(){
   const u = Number(document.getElementById('pay-usd')?.value)||0;
   const s = Number(document.getElementById('pay-som')?.value)||0;
   const tr = Number(document.getElementById('pay-trans')?.value)||0;
-  const received = u + somToUsd(s) + somToUsd(tr);
+  const cl = Number(document.getElementById('pay-click')?.value)||0;
+  const tm = Number(document.getElementById('pay-term')?.value)||0;
+  const received = u + somToUsd(s) + somToUsd(tr) + somToUsd(cl) + somToUsd(tm);
   const box = document.getElementById('pay-status'); if(!box) return;
   if(!cart.length){ box.innerHTML=''; return;}
   if(received <= 0){
@@ -1203,8 +1247,9 @@ function recalcPay(){
       <div style="font-weight:700;font-size:15px">${fmtUsd(received)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${fmtSom(usdToSom(received))})</span></div>`;
   }
 }
-function autoPayUsd(){ document.getElementById('pay-usd').value = cartListTotalUsd().toFixed(2); document.getElementById('pay-som').value = 0; const tr=document.getElementById('pay-trans'); if(tr) tr.value=0; recalcPay();}
-function autoPaySom(){ document.getElementById('pay-som').value = Math.round(usdToSom(cartListTotalUsd())); document.getElementById('pay-usd').value = 0; const tr=document.getElementById('pay-trans'); if(tr) tr.value=0; recalcPay();}
+function clearCashless(){ ['pay-trans','pay-click','pay-term'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=0; });}
+function autoPayUsd(){ document.getElementById('pay-usd').value = cartListTotalUsd().toFixed(2); document.getElementById('pay-som').value = 0; clearCashless(); recalcPay();}
+function autoPaySom(){ document.getElementById('pay-som').value = Math.round(usdToSom(cartListTotalUsd())); document.getElementById('pay-usd').value = 0; clearCashless(); recalcPay();}
 /* Effective per-unit prices for each cart line, derived from the actually
    received total (split proportionally to list price, fallback to qty share). */
 function effectiveUnitPrices(receivedUsd){
@@ -1226,7 +1271,9 @@ function completeSale(){
   const paidUsd = Number(document.getElementById('pay-usd').value)||0;
   const paidSom = Number(document.getElementById('pay-som').value)||0;
   const paidTransfer = Number(document.getElementById('pay-trans')?.value)||0;
-  const received = paidUsd + somToUsd(paidSom) + somToUsd(paidTransfer);
+  const paidClick = Number(document.getElementById('pay-click')?.value)||0;
+  const paidTerminal = Number(document.getElementById('pay-term')?.value)||0;
+  const received = paidUsd + somToUsd(paidSom) + somToUsd(paidTransfer) + somToUsd(paidClick) + somToUsd(paidTerminal);
   const listTotal = cartListTotalUsd();
   const lines = effectiveUnitPrices(received);
   const itemRows = lines.map(l=>{
@@ -1265,6 +1312,8 @@ function completeSale(){
       <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidInUsd')}</span><b>${fmtUsd(paidUsd)}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidInSom')}</span><b>${fmtSom(paidSom)} <span style="color:var(--muted);font-weight:400">(${fmtUsd(somToUsd(paidSom))})</span></b></div>
       ${paidTransfer>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidTransfer')}</span><b>${fmtSom(paidTransfer)} <span style="color:var(--muted);font-weight:400">(${fmtUsd(somToUsd(paidTransfer))})</span></b></div>`:''}
+      ${paidClick>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidClick')}</span><b>${fmtSom(paidClick)} <span style="color:var(--muted);font-weight:400">(${fmtUsd(somToUsd(paidClick))})</span></b></div>`:''}
+      ${paidTerminal>0?`<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span>${t('paidTerminal')}</span><b>${fmtSom(paidTerminal)} <span style="color:var(--muted);font-weight:400">(${fmtUsd(somToUsd(paidTerminal))})</span></b></div>`:''}
       <div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0 2px;border-top:1px dashed var(--line);margin-top:4px"><span style="font-weight:600">${t('receivedTotal')}</span><b style="font-size:16px">${fmtUsd(received)} <span style="color:var(--muted);font-weight:400;font-size:12px">(${fmtSom(usdToSom(received))})</span></b></div>
     </div>
     <div class="modal-actions">
@@ -1277,7 +1326,9 @@ function finalizeSale(){
   const paidUsd = Number(document.getElementById('pay-usd').value)||0;
   const paidSom = Number(document.getElementById('pay-som').value)||0;
   const paidTransfer = Number(document.getElementById('pay-trans')?.value)||0;
-  const received = paidUsd + somToUsd(paidSom) + somToUsd(paidTransfer);
+  const paidClick = Number(document.getElementById('pay-click')?.value)||0;
+  const paidTerminal = Number(document.getElementById('pay-term')?.value)||0;
+  const received = paidUsd + somToUsd(paidSom) + somToUsd(paidTransfer) + somToUsd(paidClick) + somToUsd(paidTerminal);
   if(received <= 0){
     if(!confirm(t('zeroReceivedConfirm'))) return;
   }
@@ -1285,9 +1336,9 @@ function finalizeSale(){
   state.sales.push({
     id:uid(), date:nowISO(), cashier:'user',
     items: lines.map(l=>({productId:l.productId, name:l.name, qty:l.qty, priceUsd:l.unitPriceUsd})),
-    paidUsd, paidSom, paidTransfer, totalUsd: received,
-    // Approval is only needed when bank transfer is involved — accountant verifies the wire arrived.
-    approved: !(paidTransfer > 0)
+    paidUsd, paidSom, paidTransfer, paidClick, paidTerminal, totalUsd: received,
+    // Cashless money needs the accountant to confirm it actually landed.
+    approved: !(paidTransfer > 0 || paidClick > 0 || paidTerminal > 0)
   });
   cart.forEach(it=>{
     const p = state.products.find(x=>x.id===it.productId);
@@ -1781,20 +1832,40 @@ function viewSales(){
   const paidUsd = sorted.reduce((s,x)=>s+x.paidUsd,0);
   const paidSom = sorted.reduce((s,x)=>s+x.paidSom,0);
   const paidTransfer = sorted.reduce((s,x)=>s+(Number(x.paidTransfer)||0),0);
+  const paidClick = sorted.reduce((s,x)=>s+(Number(x.paidClick)||0),0);
+  const paidTerminal = sorted.reduce((s,x)=>s+(Number(x.paidTerminal)||0),0);
   const muted = `<span style="color:var(--muted);font-size:11px">—</span>`;
   const boss = isBoss();
+  let lastSaleDay = null;
   const rows = sorted.map(s=>{
-    const tr = Number(s.paidTransfer)||0;
+    // Banner row on each new date so it is obvious which sales belong to which day.
+    const day = (s.date||'').slice(0,10);
+    let dayRow = '';
+    if(day !== lastSaleDay){
+      lastSaleDay = day;
+      const sameDay = sorted.filter(x => (x.date||'').slice(0,10) === day);
+      const daySom = sameDay.reduce((a,x)=>a+(x.paidSom||0)+saleCashlessSom(x), 0);
+      const dayUsd = sameDay.reduce((a,x)=>a+(x.paidUsd||0), 0);
+      const money = [daySom>0?fmtSom(daySom):null, dayUsd>0?fmtUsd(dayUsd):null].filter(Boolean).join(' + ') || '—';
+      dayRow = `<tr class="day-row"><td colspan="${boss?9:8}">
+        <span class="day-date">${fmtDayLong(day)}</span>
+        <span class="day-meta">${sameDay.length} ${t('salesCount').toLowerCase()}</span>
+        <span class="day-meta">${t('totalRevenue')}: <b>${money}</b></span>
+      </td></tr>`;
+    }
+    const tr = Number(s.paidTransfer)||0, cl = Number(s.paidClick)||0, tm = Number(s.paidTerminal)||0;
     const actionCell = boss
       ? `<td style="text-align:right;white-space:nowrap"><button class="danger" onclick="delSale('${s.id}')">${t('del')}</button></td>`
       : '';
-    return `<tr>
+    return dayRow + `<tr>
       <td>${new Date(s.date).toLocaleString()}</td>
       <td style="max-width:320px">${s.items.map(i=>escapeHtml(i.name)+' ×'+i.qty).join(', ')}</td>
       <td>${fmtUsd(s.totalUsd)}<br><span style="color:var(--muted);font-size:11px">${fmtSom(usdToSom(s.totalUsd))}</span></td>
       <td>${(s.paidUsd||0)>0?fmtUsd(s.paidUsd):muted}</td>
       <td>${(s.paidSom||0)>0?fmtSom(s.paidSom):muted}</td>
       <td>${tr>0?fmtSom(tr):muted}</td>
+      <td>${cl>0?fmtSom(cl):muted}</td>
+      <td>${tm>0?fmtSom(tm):muted}</td>
       ${actionCell}
     </tr>`;
   }).join('');
@@ -1803,16 +1874,18 @@ function viewSales(){
       <div class="kpi"><div class="l">${t('salesCount')}</div><div class="v">${sorted.length}</div></div>
       <div class="kpi"><div class="l">${t('totalRevenue')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(paidSom, paidUsd, {color:'var(--pos)'})}</div></div>
       ${paidTransfer>0?`<div class="kpi"><div class="l">${t('paidTransfer')}</div><div class="v" style="font-size:18px">${fmtSom(paidTransfer)}</div><div style="color:var(--muted);font-size:12px;margin-top:2px">${fmtUsd(somToUsd(paidTransfer))}</div></div>`:''}
+      ${paidClick>0?`<div class="kpi"><div class="l">${t('paidClick')}</div><div class="v" style="font-size:18px">${fmtSom(paidClick)}</div><div style="color:var(--muted);font-size:12px;margin-top:2px">${fmtUsd(somToUsd(paidClick))}</div></div>`:''}
+      ${paidTerminal>0?`<div class="kpi"><div class="l">${t('paidTerminal')}</div><div class="v" style="font-size:18px">${fmtSom(paidTerminal)}</div><div style="color:var(--muted);font-size:12px;margin-top:2px">${fmtUsd(somToUsd(paidTerminal))}</div></div>`:''}
     </div>` : `
     <div class="card" style="display:flex;justify-content:space-between;align-items:center">
       <div>${t('salesCount')}: <b>${sorted.length}</b></div>
     </div>`;
-  const colspan = boss ? 7 : 6;
+  const colspan = boss ? 9 : 8;
   V().innerHTML = `
     ${kpis}
     <div class="card" style="padding:0;margin-top:12px">
     <table>
-      <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th><th>${t('paidTransfer')}</th>${boss?'<th></th>':''}</tr></thead>
+      <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th><th>${t('paidTransfer')}</th><th>${t('paidClick')}</th><th>${t('paidTerminal')}</th>${boss?'<th></th>':''}</tr></thead>
       <tbody>${rows||`<tr><td colspan="${colspan}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
 }
@@ -2271,7 +2344,7 @@ function viewInstalls(){
     .filter(j => !installsCarFilter || j.carModel === installsCarFilter)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   // Real-cash sums per currency, separately, never converted into a single number.
-  const sumChargedSom = filtered.reduce((s,j)=>s+(j.amountSom||0)+(j.amountTransfer||0), 0);
+  const sumChargedSom = filtered.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j), 0);
   const sumChargedUsd = filtered.reduce((s,j)=>s+(j.amountUsd||0), 0);
   const sumPaidSom = filtered.reduce((s,j)=>s+installPayoutTotals(j).som, 0);
   const sumPaidUsd = filtered.reduce((s,j)=>s+installPayoutTotals(j).usd, 0);
@@ -2280,22 +2353,38 @@ function viewInstalls(){
       <div class="kpi"><div class="l">${t('charged')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumChargedSom, sumChargedUsd, {color:'var(--pos)'})}</div></div>
       <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumPaidSom, sumPaidUsd, {color:'var(--neg)'})}</div></div>
     </div>` : '';
+  let lastDay = null;
   const rows = filtered.map(j=>{
+    // A banner row whenever the date changes, so each day's cars are visually blocked together.
+    const day = (j.date||'').slice(0,10);
+    let dayRow = '';
+    if(day !== lastDay){
+      lastDay = day;
+      const sameDay = filtered.filter(x => (x.date||'').slice(0,10) === day);
+      const gotSom = sameDay.reduce((s,x)=>s+(x.amountSom||0)+installCashlessSom(x), 0);
+      const gotUsd = sameDay.reduce((s,x)=>s+(x.amountUsd||0), 0);
+      const money = [gotSom>0?fmtSom(gotSom):null, gotUsd>0?fmtUsd(gotUsd):null].filter(Boolean).join(' + ') || '—';
+      dayRow = `<tr class="day-row"><td colspan="7">
+        <span class="day-date">${fmtDayLong(day)}</span>
+        <span class="day-meta">${sameDay.length} ${t('carsCount')}</span>
+        <span class="day-meta">${t('charged')}: <b>${money}</b></span>
+      </td></tr>`;
+    }
     const payees = installPayees(j);
     const carCell = j.carModel
       ? `<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
       : (payees.length ? payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') : '<span style="color:var(--muted)">—</span>');
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     const payout = installPayoutTotals(j);
-    const transfer = Number(j.amountTransfer)||0;
-    const unpaid = (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && transfer <= 0;
-    const transferLine = transfer > 0
-      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t('paidTransfer')}: ${fmtSom(transfer)}</div>`
-      : '';
+    const unpaid = (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && installCashlessSom(j) <= 0;
+    const transferLine = [['paidTransfer', j.amountTransfer], ['paidClick', j.amountClick], ['paidTerminal', j.amountTerminal]]
+      .filter(([,amt]) => (Number(amt)||0) > 0)
+      .map(([key,amt]) => `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t(key)}: ${fmtSom(amt)}</div>`)
+      .join('');
     const receivedCell = unpaid
       ? `<span class="chip bad">${t('unpaid')}</span>`
       : fmtDualPay(j.amountSom||0, j.amountUsd||0) + transferLine;
-    return `<tr${unpaid?' class="unpaid"':''}>
+    return dayRow + `<tr${unpaid?' class="unpaid"':''}>
       <td>${j.date}</td>
       <td>${carCell}</td>
       <td style="max-width:260px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
@@ -2379,6 +2468,8 @@ function openInstall(id){
     </div>
     <div class="row" style="margin-top:8px">
       <div class="col"><label>${t('paidTransfer')} (SOM)</label><input id="j-trans" type="number" step="1" value="${editing?(editing.amountTransfer||0):0}" oninput="updateSomHint('j-trans','j-trans-hint')"><small id="j-trans-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('paidClick')} (SOM)</label><input id="j-click" type="number" step="1" value="${editing?(editing.amountClick||0):0}" oninput="updateSomHint('j-click','j-click-hint')"><small id="j-click-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('paidTerminal')} (SOM)</label><input id="j-term" type="number" step="1" value="${editing?(editing.amountTerminal||0):0}" oninput="updateSomHint('j-term','j-term-hint')"><small id="j-term-hint" style="color:var(--muted);font-size:11px"></small></div>
     </div>
     <label style="margin-top:10px">${t('note')}</label>
     <textarea id="j-note" rows="2">${editing?escapeHtml(editing.note||''):''}</textarea>
@@ -2491,6 +2582,8 @@ function saveInstall(){
   const amountUsd = Number(document.getElementById('j-usd').value)||0;
   const amountSom = Number(document.getElementById('j-som').value)||0;
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
+  const amountClick = Number(document.getElementById('j-click')?.value)||0;
+  const amountTerminal = Number(document.getElementById('j-term')?.value)||0;
   const note = document.getElementById('j-note').value.trim();
   if(editing){
     // Refund original items, then deduct new — net effect keeps stock consistent.
@@ -2514,12 +2607,15 @@ function saveInstall(){
     editing.amountUsd = amountUsd;
     editing.amountSom = amountSom;
     editing.amountTransfer = amountTransfer;
+    editing.amountClick = amountClick;
+    editing.amountTerminal = amountTerminal;
     editing.note = note;
-    // Re-evaluate approval state: any transfer in the install requires re-approval.
-    editing.approved = !(amountTransfer > 0);
+    // Re-evaluate approval state: any cashless money in the install requires re-approval.
+    editing.approved = !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, note, approved: !(amountTransfer > 0)};
+    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal, note,
+                 approved: !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0)};
     state.installs.push(job);
     items.forEach(it=>{
       const p = state.products.find(x=>x.id===it.productId);
@@ -2548,8 +2644,11 @@ function delInstall(id){
 }
 
 /* =================== APPROVALS (accountant) =================== */
-const saleAmountUsd = s => (Number(s.paidUsd)||0) + somToUsd((Number(s.paidSom)||0) + (Number(s.paidTransfer)||0));
-const installAmountUsd = j => (Number(j.amountUsd)||0) + somToUsd((Number(j.amountSom)||0) + (Number(j.amountTransfer)||0));
+// Cashless som on a sale / install: bank transfer, Click and card terminal.
+const saleCashlessSom = s => (Number(s.paidTransfer)||0) + (Number(s.paidClick)||0) + (Number(s.paidTerminal)||0);
+const installCashlessSom = j => (Number(j.amountTransfer)||0) + (Number(j.amountClick)||0) + (Number(j.amountTerminal)||0);
+const saleAmountUsd = s => (Number(s.paidUsd)||0) + somToUsd((Number(s.paidSom)||0) + saleCashlessSom(s));
+const installAmountUsd = j => (Number(j.amountUsd)||0) + somToUsd((Number(j.amountSom)||0) + installCashlessSom(j));
 const expenseAmountUsd = e => (Number(e.amountUsd)||0) + somToUsd(Number(e.amountSom)||0);
 function pendingTotals(){
   let usd = 0;
@@ -2574,11 +2673,13 @@ function viewApprovals(){
   const installs = state.installs.filter(isPending);
   const expenses = state.expenses.filter(isPending);
   const total = sales.length + installs.length + expenses.length;
-  const moneyChip = (somAmount, usdAmount, transfer) => {
+  const moneyChip = (somAmount, usdAmount, transfer, click, terminal) => {
     const parts = [];
     if((Number(usdAmount)||0) > 0) parts.push(`<b>${fmtUsd(usdAmount)}</b>`);
     if((Number(somAmount)||0) > 0) parts.push(`<b>${fmtSom(somAmount)}</b>`);
-    if((Number(transfer)||0) > 0) parts.push(`<b style="color:var(--accent)">${fmtSom(transfer)} <small style="font-weight:400">(${t('paidTransfer')})</small></b>`);
+    [[transfer,'paidTransfer'],[click,'paidClick'],[terminal,'paidTerminal']].forEach(([amt,key])=>{
+      if((Number(amt)||0) > 0) parts.push(`<b style="color:var(--accent)">${fmtSom(amt)} <small style="font-weight:400">(${t(key)})</small></b>`);
+    });
     return parts.length ? parts.join(' <span style="color:var(--muted);margin:0 4px">·</span> ') : `<span style="color:var(--muted)">—</span>`;
   };
   const saleRows = sales.map(s => {
@@ -2586,7 +2687,7 @@ function viewApprovals(){
     return `<tr>
       <td>${(s.date||'').slice(0,10)}</td>
       <td style="font-size:12px">${items||'—'}</td>
-      <td>${moneyChip(s.paidSom, s.paidUsd, s.paidTransfer)}</td>
+      <td>${moneyChip(s.paidSom, s.paidUsd, s.paidTransfer, s.paidClick, s.paidTerminal)}</td>
       <td style="text-align:right"><button class="primary" onclick="approveItem('sale','${s.id}')">${t('approve')}</button></td>
     </tr>`;
   }).join('');
@@ -2596,7 +2697,7 @@ function viewApprovals(){
       <td>${j.date}</td>
       <td><b>${escapeHtml(j.carModel||'—')}</b></td>
       <td style="font-size:12px">${items||'—'}</td>
-      <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer)}</td>
+      <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer, j.amountClick, j.amountTerminal)}</td>
       <td style="text-align:right"><button class="primary" onclick="approveItem('install','${j.id}')">${t('approve')}</button></td>
     </tr>`;
   }).join('');
@@ -2639,20 +2740,27 @@ function viewApprovals(){
 }
 
 /* =================== DASHBOARD =================== */
-function saleCOGS(sale){
-  return sale.items.reduce((s,it)=>{
+/* Cost of the parts in any items[] list, at the product's current cost price. */
+function itemsCOGS(items){
+  return (items||[]).reduce((s,it)=>{
     const p = state.products.find(x=>x.id===it.productId);
-    return s + (p?.costUsd||0) * it.qty;
+    return s + (p?.costUsd||0) * (it.qty||0);
   },0);
 }
+const saleCOGS = sale => itemsCOGS(sale.items);
+// Parts fitted during an install job cost money too — count them, or an installation-only
+// shop shows zero cost of goods and its whole revenue as profit.
+const installCOGS = job => itemsCOGS(job.items);
+const periodCOGS = (sales, installs) =>
+  (sales||[]).reduce((s,x)=>s+saleCOGS(x),0) + (installs||[]).reduce((s,j)=>s+installCOGS(j),0);
 function viewDashboard(){
-  const installRev = j => (j.amountUsd||0) + somToUsd(j.amountSom||0);
+  const installRev = j => installAmountUsd(j);   // cash + transfer + Click
   const totalRev = state.sales.reduce((s,x)=>s+x.totalUsd,0)
                  + state.installs.reduce((s,j)=>s+installRev(j),0);
   const totalExp = state.expenses.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const purchExp = state.expenses.filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const opExp = totalExp - purchExp;
-  const cogs = state.sales.reduce((s,x)=>s+saleCOGS(x),0);
+  const cogs = periodCOGS(state.sales, state.installs);
   const profit = totalRev - cogs - opExp;
   const weekRev = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+x.totalUsd,0)
                 + state.installs.filter(j=>isWithinDays(j.date,7)).reduce((s,j)=>s+installRev(j),0);
@@ -2660,8 +2768,10 @@ function viewDashboard(){
                  + state.installs.filter(j=>isWithinDays(j.date,30)).reduce((s,j)=>s+installRev(j),0);
   const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
-  const weekCogs = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+saleCOGS(x),0);
-  const monthCogs = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+saleCOGS(x),0);
+  const weekCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,7)),
+                              state.installs.filter(j=>isWithinDays(j.date,7)));
+  const monthCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,30)),
+                               state.installs.filter(j=>isWithinDays(j.date,30)));
   const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   const weekProfit = weekRev - weekCogs - weekOpExp;
@@ -2690,6 +2800,9 @@ function viewDashboard(){
     : '';
   V().innerHTML = `
     ${pendingBanner}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button class="primary" onclick="downloadExcelReport(true)">📊 ${t('downloadExcel')} — ${t('allTime')}</button>
+    </div>
     <div class="row">
       <div class="kpi"><div class="l">${t('totalRevenue')}</div><div class="v" style="color:var(--pos)">${fmtUsd(totalRev)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(totalRev))}</div></div>
       <div class="kpi" title="${t('cogsHint')}"><div class="l">${t('cogs')}</div><div class="v" style="color:var(--hi)">${fmtUsd(cogs)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSom(usdToSom(cogs))}</div></div>
@@ -2701,16 +2814,16 @@ function viewDashboard(){
       <div class="kpi"><div class="l">${t('thisWeekRE')}</div><div class="v" style="font-size:16px">${fmtUsd(weekRev)} <span style="color:var(--muted)">/ ${fmtUsd(weekExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(weekRev))} / ${fmtSom(usdToSom(weekExp))}</div><div style="color:${weekProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(weekProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(weekProfit))})</span></div></div>
       <div class="kpi"><div class="l">${t('thisMonthRE')}</div><div class="v" style="font-size:16px">${fmtUsd(monthRev)} <span style="color:var(--muted)">/ ${fmtUsd(monthExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(monthRev))} / ${fmtSom(usdToSom(monthExp))}</div><div style="color:${monthProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(monthProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(monthProfit))})</span></div></div>
       <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(state.sales.reduce((s,x)=>s+(x.paidUsd||0),0) + state.installs.reduce((s,j)=>s+(j.amountUsd||0),0))}</div></div>
-      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+(x.paidSom||0),0) + state.installs.reduce((s,j)=>s+(j.amountSom||0),0))}</div></div>
+      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x),0) + state.installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0))}</div></div>
     </div>
     <div class="row" style="margin-top:12px">
       <div class="kpi"><div class="l">${t('stockUnits')}</div><div class="v">${totalUnits}</div></div>
       <div class="kpi"><div class="l">${t('productTypes')}</div><div class="v">${state.products.length}</div></div>
       <div class="kpi"><div class="l">${t('suppliersKpi')}</div><div class="v">${state.suppliers.length}</div></div>
       ${(() => {
-        const transferSom = state.sales.reduce((s,x)=>s+(Number(x.paidTransfer)||0),0)
-                          + state.installs.reduce((s,j)=>s+(Number(j.amountTransfer)||0),0);
-        return `<div class="kpi"><div class="l">${t('paidTransfer')}</div><div class="v">${fmtSom(transferSom)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtUsd(somToUsd(transferSom))}</div></div>`;
+        const transferSom = state.sales.reduce((s,x)=>s+saleCashlessSom(x),0)
+                          + state.installs.reduce((s,j)=>s+installCashlessSom(j),0);
+        return `<div class="kpi"><div class="l">${t('paidTransfer')} + ${t('paidClick')} + ${t('paidTerminal')}</div><div class="v">${fmtSom(transferSom)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtUsd(somToUsd(transferSom))}</div></div>`;
       })()}
     </div>
     ${lowStock.length?`<div class="card" style="margin-top:16px;border-color:#5a2a2e">
@@ -2819,27 +2932,29 @@ function readArchiveInputs(){
   archiveRange = {from:f, to:tt};
   renderArchiveBody();
 }
-function inRange(dateStr){
+function inRange(dateStr, range){
+  range = range || archiveRange;
   if(!dateStr) return false;
   const d = dateStr.slice(0,10);
-  if(archiveRange.from && d < archiveRange.from) return false;
-  if(archiveRange.to && d > archiveRange.to) return false;
+  if(range.from && d < range.from) return false;
+  if(range.to && d > range.to) return false;
   return true;
 }
-function archiveData(){
-  const sales = state.sales.filter(s=>inRange(s.date));
-  const installs = state.installs.filter(j=>inRange(j.date));
-  const expenses = state.expenses.filter(e=>inRange(e.date));
-  const purchases = state.purchases.filter(p=>inRange(p.date));
-  const installRev = j => (j.amountUsd||0) + somToUsd(j.amountSom||0);
+function archiveData(range){
+  range = range || archiveRange;
+  const sales = state.sales.filter(s=>inRange(s.date, range));
+  const installs = state.installs.filter(j=>inRange(j.date, range));
+  const expenses = state.expenses.filter(e=>inRange(e.date, range));
+  const purchases = state.purchases.filter(p=>inRange(p.date, range));
+  // Revenue counts every payment method, cash or cashless (transfer / Click).
   const totalRev = sales.reduce((s,x)=>s+x.totalUsd,0)
-                 + installs.reduce((s,j)=>s+installRev(j),0);
-  // Real cash received per currency in this period (sales + install jobs combined)
+                 + installs.reduce((s,j)=>s+installAmountUsd(j),0);
+  // Received per currency in this period (sales + install jobs combined); cashless is som.
   const totalRevUsd = sales.reduce((s,x)=>s+(x.paidUsd||0),0)
                     + installs.reduce((s,j)=>s+(j.amountUsd||0),0);
-  const totalRevSom = sales.reduce((s,x)=>s+(x.paidSom||0),0)
-                    + installs.reduce((s,j)=>s+(j.amountSom||0),0);
-  const cogs = sales.reduce((s,x)=>s+saleCOGS(x),0);
+  const totalRevSom = sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x),0)
+                    + installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0);
+  const cogs = periodCOGS(sales, installs);
   const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
   // Real cash out per currency in this period (op expenses only)
   const opExpUsd = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0),0);
@@ -2874,6 +2989,7 @@ function viewArchive(){
         <div class="col"><label>${t('from')}</label><input type="date" id="arc-from" value="${archiveRange.from}" onchange="readArchiveInputs()"></div>
         <div class="col"><label>${t('to')}</label><input type="date" id="arc-to" value="${archiveRange.to}" onchange="readArchiveInputs()"></div>
         <div class="col" style="display:flex;align-items:flex-end;gap:6px">
+          <button class="primary" onclick="downloadExcelReport()">📊 ${t('downloadExcel')}</button>
           <button class="primary" onclick="downloadArchiveHtml()">${t('downloadHtml')}</button>
           <button onclick="window.print()">${t('printReport')}</button>
         </div>
@@ -2995,6 +3111,549 @@ function downloadArchiveHtml(){
   a.click();
 }
 
+/* =================== EXCEL (.xlsx) EXPORT =================== */
+/* Minimal self-contained XLSX writer (zip stored + SpreadsheetML), no libraries — works offline. */
+const XLSX_CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); t[n]=c>>>0; }
+  return t;
+})();
+function xlsxCrc32(bytes){
+  let c = 0xFFFFFFFF;
+  for(let i=0;i<bytes.length;i++) c = XLSX_CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF)>>>0;
+}
+function xlsxZip(files){
+  const enc = new TextEncoder();
+  const u16 = v => [v&255,(v>>>8)&255];
+  const u32 = v => [v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+  const now = new Date();
+  const dosTime = (now.getHours()<<11)|(now.getMinutes()<<5)|Math.floor(now.getSeconds()/2);
+  const dosDate = ((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+  const chunks = [], central = [];
+  let offset = 0;
+  for(const f of files){
+    const nameB = enc.encode(f.name);
+    const data = enc.encode(f.xml);
+    const crc = xlsxCrc32(data);
+    const local = new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0),...u16(0),...u16(dosTime),...u16(dosDate),...u32(crc),...u32(data.length),...u32(data.length),...u16(nameB.length),...u16(0)]);
+    chunks.push(local, nameB, data);
+    central.push({nameB, crc, size:data.length, offset});
+    offset += local.length + nameB.length + data.length;
+  }
+  const centralStart = offset;
+  for(const c of central){
+    const hdr = new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0),...u16(0),...u16(dosTime),...u16(dosDate),...u32(c.crc),...u32(c.size),...u32(c.size),...u16(c.nameB.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(c.offset)]);
+    chunks.push(hdr, c.nameB);
+    offset += hdr.length + c.nameB.length;
+  }
+  chunks.push(new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(central.length),...u16(central.length),...u32(offset-centralStart),...u32(centralStart),...u16(0)]));
+  return new Blob(chunks, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+// \n becomes a hard line break inside the cell (needs wrapText on the style to show).
+const escXlsx = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/\r/g,'').replace(/\n/g,'&#10;');
+function xlsxColRef(n){
+  let s=''; n++;
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+/* Style indexes are defined by styles.xml in buildXlsxBlob — see the XLS constant below.
+   A row is {c:[cells], h:height} (h optional). A cell is a primitive, {v,s} or {f,s}
+   where f is a formula written without the leading '='. */
+function xlsxSheetXml(rows, widths, opts){
+  opts = opts || {};
+  const cols = (widths&&widths.length)
+    ? `<cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : '';
+  const merges = (opts.merges && opts.merges.length)
+    ? `<mergeCells count="${opts.merges.length}">${opts.merges.map(m=>`<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '';
+  // Element order follows the CT_Worksheet schema sequence — Excel rejects the file otherwise.
+  const sheetPr = opts.print ? `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>` : '';
+  const printXml = opts.print
+    ? `<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>`
+      + `<pageSetup paperSize="9" orientation="${opts.orientation||'portrait'}" fitToWidth="1" fitToHeight="${opts.fitToHeight!=null?opts.fitToHeight:0}"/>`
+    : '';
+  const cellXml = (cell, r, c) => {
+    const ref = xlsxColRef(c)+(r+1);
+    let s = 0, v = cell, f = null;
+    if(cell && typeof cell === 'object'){ s = cell.s||0; v = cell.v; f = cell.f||null; }
+    // A formula also carries its computed value, so viewers that don't recalculate still
+    // show a number instead of a blank cell.
+    if(f){
+      const cached = (typeof v === 'number' && isFinite(v)) ? `<v>${Math.round(v*100)/100}</v>` : '';
+      return `<c r="${ref}" s="${s}"><f>${escXlsx(f)}</f>${cached}</c>`;
+    }
+    if(typeof v === 'number' && isFinite(v)) return `<c r="${ref}" s="${s}"><v>${Math.round(v*100)/100}</v></c>`;
+    const str = (v==null) ? '' : String(v);
+    if(str==='' && !s) return '';
+    if(str==='') return `<c r="${ref}" s="${s}"/>`;
+    return `<c r="${ref}" t="inlineStr" s="${s}"><is><t xml:space="preserve">${escXlsx(str)}</t></is></c>`;
+  };
+  const body = rows.map((row,r)=>{
+    const cells = (row.c||[]);
+    const ht = row.h ? ` ht="${row.h}" customHeight="1"` : '';
+    return `<row r="${r+1}"${ht}>${cells.map((v,c)=>cellXml(v,r,c)).join('')}</row>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheetPr}${cols}<sheetData>${body}</sheetData>${merges}${printXml}</worksheet>`;
+}
+function buildXlsxBlob(sheets){
+  const safeName = (n,i) => (String(n||('Sheet'+(i+1))).replace(/[\\\/\?\*\[\]:]/g,' ').trim().slice(0,31)) || ('Sheet'+(i+1));
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
+  const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${escXlsx(safeName(s.name,i))}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets><calcPr calcId="124519" fullCalcOnLoad="1"/></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  /* Fonts, fills, borders and cell styles mirror the boss's reference workbook exactly.
+     Style indexes are referenced by name through the XLS map in downloadExcelReport. */
+  const F = (sz,b,color) => `<font>${b?'<b/>':''}<sz val="${sz}"/>${color?`<color rgb="FF${color}"/>`:''}<name val="${color===null?'Calibri':'Segoe UI'}"/></font>`;
+  const SOLID = c => `<fill><patternFill patternType="solid"><fgColor rgb="FF${c}"/><bgColor indexed="64"/></patternFill></fill>`;
+  const EDGE = '<color rgb="FFD0D7DE"/>', NAVY = '<color rgb="FF1B365D"/>';
+  const SIDE = 'style="thin">'+EDGE;
+  const BORDER = (l,r,t,b) => `<border>${l?`<left ${SIDE}</left>`:'<left/>'}${r?`<right ${SIDE}</right>`:'<right/>'}`
+    + `${t?`<top ${SIDE}</top>`:'<top/>'}${b?(b==='thin'?`<bottom ${SIDE}</bottom>`:`<bottom style="${b}">${NAVY}</bottom>`):'<bottom/>'}<diagonal/></border>`;
+  const XF = (font,fill,border,fmt,al) =>
+    `<xf numFmtId="${fmt||0}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0"`
+    + `${font?' applyFont="1"':''}${fill?' applyFill="1"':''}${border?' applyBorder="1"':''}${fmt?' applyNumberFormat="1"':''}`
+    + (al ? ` applyAlignment="1"><alignment ${al}/></xf>` : '/>');
+  const C = 'horizontal="center" vertical="center"', CW = C+' wrapText="1"';
+  const L = 'horizontal="left" vertical="center"', R = 'horizontal="right" vertical="center"';
+  const M = 164;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="22">${
+    F(11,0,null)                 /* 0  Calibri default    */}${
+    F(16,1,'1B365D')             /* 1  report title       */}${
+    F(9,0,'555555')              /* 2  subtitle           */}${
+    F(7.5,1,'555555')            /* 3  KPI label          */}${
+    F(11.5,1,'1E7E34')           /* 4  KPI green          */}${
+    F(7,0,'777777')              /* 5  KPI caption        */}${
+    F(11.5,1,'C53030')           /* 6  KPI red            */}${
+    F(11.5,1,'1B365D')           /* 7  KPI navy           */}${
+    F(11.5,1,'6B21A8')           /* 8  KPI purple         */}${
+    F(12,1,'D97706')             /* 9  KPI amber          */}${
+    F(10,1,'1B365D')             /* 10 section title      */}${
+    F(8.5,1,'FFFFFF')            /* 11 table header       */}${
+    F(8.5,0,'1A1A1A')            /* 12 cell               */}${
+    F(8.5,1,'1A1A1A')            /* 13 cell bold          */}${
+    F(8.5,1,'6B21A8')            /* 14 cost purple        */}${
+    F(8.5,1,'2B547E')            /* 15 payout blue        */}${
+    F(8.5,0,'C53030')            /* 16 money red          */}${
+    F(9,1,'1B365D')              /* 17 total navy         */}${
+    F(8.5,1,'C53030')            /* 18 total red          */}${
+    F(9,1,'C53030')              /* 19 total red large    */}${
+    F(8.5,1,'1E7E34')            /* 20 profit green       */}${
+    F(9,1,'1E7E34')              /* 21 profit green total */
+  }</fonts><fills count="9"><fill><patternFill/></fill><fill><patternFill patternType="gray125"/></fill>${
+    SOLID('F7FAFC')}${SOLID('EBF8FF')}${SOLID('FEF3C7')}${SOLID('1B365D')}${SOLID('F9FBFC')}${SOLID('F0F4F8')}${SOLID('2B547E')
+  }</fills><borders count="8">${
+    BORDER(0,0,0,0)              /* 0 none                */}${
+    BORDER(1,1,1,'thin')         /* 1 full box            */}${
+    BORDER(1,1,1,'medium')       /* 2 header underline    */}${
+    BORDER(1,0,0,0)              /* 3 left only           */}${
+    BORDER(1,1,0,0)              /* 4 merge middle        */}${
+    BORDER(1,1,0,'thin')         /* 5 merge last          */}${
+    BORDER(1,1,1,'double')       /* 6 grand total         */}${
+    `<border><left/><right/><top style="medium">${NAVY}</top><bottom style="medium">${NAVY}</bottom><diagonal/></border>`
+                                 /* 7 day separator band  */
+  }</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="48">${
+    XF(0,0,0)          /*  0 default        */}${XF(1,0,0,0,C)     /*  1 title          */}${
+    XF(2,0,0,0,C)      /*  2 subtitle       */}${XF(3,2,1,0,C)     /*  3 kpi label      */}${
+    XF(0,2,1)          /*  4 kpi fill grey  */}${XF(3,3,1,0,C)     /*  5 kpi label blue */}${
+    XF(0,3,1)          /*  6 kpi fill blue  */}${XF(3,4,1,0,C)     /*  7 kpi label amber*/}${
+    XF(4,2,1,M,C)      /*  8 kpi green      */}${XF(6,2,1,M,C)     /*  9 kpi red        */}${
+    XF(7,3,1,M,C)      /* 10 kpi navy       */}${XF(8,2,1,M,C)     /* 11 kpi purple     */}${
+    XF(9,4,1,M,C)      /* 12 kpi amber      */}${XF(5,2,1,0,C)     /* 13 caption grey   */}${
+    XF(5,3,1,0,C)      /* 14 caption blue   */}${XF(5,4,1,0,C)     /* 15 caption amber  */}${
+    XF(10,0,0)         /* 16 section title  */}${XF(11,5,2,0,CW)   /* 17 header navy    */}${
+    XF(13,6,1,0,C)     /* 18 car banded     */}${XF(12,6,1,0,L)    /* 19 part banded    */}${
+    XF(14,6,1,M,R)     /* 20 cost banded    */}${XF(15,6,1,0,CW)   /* 21 payout banded  */}${
+    XF(12,6,1,0,CW)    /* 22 cell banded    */}${XF(13,6,1,M,R)    /* 23 revenue banded */}${
+    XF(0,0,4)          /* 24 merge middle   */}${XF(0,0,5)         /* 25 merge last     */}${
+    XF(13,0,1,0,C)     /* 26 car            */}${XF(12,0,1,0,L)    /* 27 part           */}${
+    XF(14,0,1,M,R)     /* 28 cost           */}${XF(15,0,1,0,CW)   /* 29 payout         */}${
+    XF(12,0,1,0,CW)    /* 30 cell           */}${XF(16,0,1,M,C)    /* 31 payout usd     */}${
+    XF(13,0,1,M,R)     /* 32 revenue        */}${XF(17,7,6,0,R)    /* 33 total label    */}${
+    XF(0,7,6)          /* 34 total filler   */}${XF(14,7,6,M,R)    /* 35 total cost     */}${
+    XF(18,7,6,M,R)     /* 36 total payout   */}${XF(17,7,6,M,R)    /* 37 total revenue  */}${
+    XF(11,8,2,0,CW)    /* 38 header blue    */}${XF(12,0,1,0,CW)   /* 39 exp cell       */}${
+    XF(16,0,1,M,R)     /* 40 exp money      */}${XF(12,6,1,0,CW)   /* 41 exp banded     */}${
+    XF(16,6,1,M,R)     /* 42 exp money band */}${XF(19,7,6,M,R)    /* 43 total expenses */}${
+    XF(20,0,1,M,R)     /* 44 profit green   */}${XF(20,6,1,M,R)    /* 45 profit green b */}${
+    XF(21,7,6,M,R)     /* 46 profit total   */}${XF(17,3,7,0,L)    /* 47 day band       */
+  }</cellXfs></styleSheet>`;
+  const files = [
+    {name:'[Content_Types].xml', xml:contentTypes},
+    {name:'_rels/.rels', xml:rootRels},
+    {name:'xl/workbook.xml', xml:workbook},
+    {name:'xl/_rels/workbook.xml.rels', xml:wbRels},
+    {name:'xl/styles.xml', xml:styles},
+  ];
+  sheets.forEach((s,i)=>files.push({name:`xl/worksheets/sheet${i+1}.xml`, xml:xlsxSheetXml(s.rows, s.widths, s.opts)}));
+  return xlsxZip(files);
+}
+/* The report file is always in Russian, regardless of UI language — boss's request. */
+function payMethodLabelRu(usd, som, transfer, click, terminal){
+  const parts = [];
+  if((Number(usd)||0)>0) parts.push('Наличные USD');
+  if((Number(som)||0)>0) parts.push('Наличные сумы');
+  if((Number(transfer)||0)>0) parts.push('Перечисление');
+  if((Number(click)||0)>0) parts.push('Click');
+  if((Number(terminal)||0)>0) parts.push('Терминал');
+  return parts.join(' + ') || '—';
+}
+const nfRu = n => (Math.round((Number(n)||0)*100)/100).toLocaleString('ru-RU');
+function moneyTextRu(usd, som, transfer, click, terminal){
+  const parts = [];
+  if((Number(usd)||0)>0) parts.push('$'+nfRu(usd));
+  if((Number(som)||0)>0) parts.push(nfRu(som)+' сум');
+  if((Number(transfer)||0)>0) parts.push('перевод '+nfRu(transfer)+' сум');
+  if((Number(click)||0)>0) parts.push('Click '+nfRu(click)+' сум');
+  if((Number(terminal)||0)>0) parts.push('терминал '+nfRu(terminal)+' сум');
+  return parts.join(' + ') || '—';
+}
+function downloadExcelReport(allTime){
+  const range = allTime ? {from:'',to:''} : archiveRange;
+  const d = archiveData(range);
+  const rangeStr = allTime ? 'Всё время' : ((range.from||'—') + ' — ' + (range.to||'—'));
+  const ruExpType = tp => (LOCALES.ru['expense_'+tp] || tp);
+
+  /* Layout, fonts and colours follow the boss's reference workbook. Seven columns A–G.
+     XLS names the style indexes defined in buildXlsxBlob's styles.xml. */
+  const XLS = {
+    title:1, subtitle:2,
+    kpiLabel:3, kpiFillGrey:4, kpiLabelBlue:5, kpiFillBlue:6, kpiLabelAmber:7,
+    kpiGreen:8, kpiRed:9, kpiNavy:10, kpiPurple:11, kpiAmber:12,
+    capGrey:13, capBlue:14, capAmber:15,
+    section:16, headNavy:17,
+    carB:18, partB:19, costB:20, payoutB:21, cellB:22, revenueB:23,
+    mergeMid:24, mergeEnd:25,
+    car:26, part:27, cost:28, payout:29, cell:30, payoutUsd:31, revenue:32,
+    totalLabel:33, totalFill:34, totalCost:35, totalPayout:36, totalRevenue:37,
+    headBlue:38, expCell:39, expMoney:40, expCellB:41, expMoneyB:42, totalExpense:43,
+    profit:44, profitB:45, profitTotal:46, dayBand:47,
+  };
+  const S = (v,s)=>({v,s});
+  const Fx = (f,s,v)=>({f,s,v});    // v = computed value, cached so blank cells never appear
+  const COLS = 7, rows = [], merges = [];
+  const at = (r,c) => xlsxColRef(c)+(r+1);
+  const put = (cells,h) => { rows.push({c:cells,h}); return rows.length-1; };
+  const pad = (cells,style) => { const o = cells.slice(); while(o.length<COLS) o.push(S('',style||0)); return o; };
+  const mergeRow = (r,c1,c2) => { if(c2>c1) merges.push(at(r,c1)+':'+at(r,c2)); };
+  const mergeCol = (c,r1,r2) => { if(r2>r1) merges.push(at(r1,c)+':'+at(r2,c)); };
+  const gap = () => put([]);
+  const nameOf = id => { const i = state.installers.find(x=>x.id===id); return i ? i.name : '?'; };
+  const costOf = it => (state.products.find(p=>p.id===it.productId)?.costUsd || 0) * (it.qty||0);
+  /* Installer pay lives in two places: inline on the job (older records) and as
+     'installation_pay' expenses linked by installId (what the app writes today).
+     Merge both, per installer, or the report silently loses real money. */
+  const jobPayoutList = j => {
+    const map = {};
+    const bump = (id, usd, som) => {
+      if(!id) return;
+      if(!map[id]) map[id] = {installerId:id, usd:0, som:0};
+      map[id].usd += usd||0; map[id].som += som||0;
+    };
+    jobInstallers(j).forEach(a => bump(a.installerId, a.paidUsd, a.paidSom));
+    (state.expenses||[]).forEach(e => {
+      if(e.type === 'installation_pay' && e.installId === j.id) bump(e.installerId, e.amountUsd, e.amountSom);
+    });
+    return Object.values(map).filter(a => a.usd > 0 || a.som > 0);
+  };
+
+  /* ---------------- title ---------------- */
+  mergeRow(put([S(rangeStr, XLS.title)], 24), 0, COLS-1);
+  mergeRow(put([S('ОТЧЁТ GAZMETPROD: РАЗДЕЛЬНАЯ СЕБЕСТОИМОСТЬ, ВЫПЛАТЫ УСТАНОВЩИКАМ И ЧИСТАЯ ПРИБЫЛЬ'
+                  + ' · сформирован ' + new Date().toLocaleString('ru-RU')
+                  + ' · курс 1$ = ' + nfRu(state.rate||0) + ' сум', XLS.subtitle)], 15), 0, COLS-1);
+  gap();
+
+  /* ---------------- KPI cards (formulas patched in once row numbers are known) ---------------- */
+  const rKpiLabel = put(pad([
+    S('1. ВЫРУЧКА (сум)', XLS.kpiLabel),      S('', XLS.kpiFillGrey),
+    S('2. РАСХОДЫ (сум)', XLS.kpiLabel),
+    S('3. СДАНО БОССУ (сум)', XLS.kpiLabelBlue), S('', XLS.kpiFillBlue),
+    S('4. ПОСТАВЩИКАМ (сум)', XLS.kpiLabel),
+    S('5. ЧИСТАЯ ПРИБЫЛЬ (сум)', XLS.kpiLabelAmber)]), 14);
+  mergeRow(rKpiLabel,0,1); mergeRow(rKpiLabel,3,4);
+  const rKpi = put(pad([
+    S(0, XLS.kpiGreen), S('', XLS.kpiFillGrey), S(0, XLS.kpiRed),
+    S(0, XLS.kpiNavy),  S('', XLS.kpiFillBlue), S(0, XLS.kpiPurple), S(0, XLS.kpiAmber)]), 20);
+  mergeRow(rKpi,0,1); mergeRow(rKpi,3,4);
+
+  // Client money is reported in the currency it actually arrived in — som stays som, USD stays USD.
+  const gotSom = d.sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x), 0)
+               + d.installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j), 0);
+  const gotUsd = d.sales.reduce((s,x)=>s+(x.paidUsd||0), 0)
+               + d.installs.reduce((s,j)=>s+(j.amountUsd||0), 0);
+  const gotParts = [];
+  if(gotSom>0) gotParts.push(nfRu(gotSom)+' сум');
+  if(gotUsd>0) gotParts.push('$'+nfRu(gotUsd));
+  const rCap = put(pad([
+    S(gotParts.join(' + ') || 'нет поступлений', XLS.capGrey), S('', XLS.kpiFillGrey),
+    S('Удержано из кассы', XLS.capGrey),
+    S('(Выручка − Расходы)', XLS.capBlue), S('', XLS.kpiFillBlue),
+    S('Себестоимость деталей', XLS.capGrey),
+    S('(Сдано − Себестоимость)', XLS.capAmber)]), 13);
+  mergeRow(rCap,0,1); mergeRow(rCap,3,4);
+
+  /* ---------------- 1. installs, one row per fitted part ---------------- */
+  gap();
+  mergeRow(put([S('1. Раздельный учёт себестоимости деталей, оплаты установщиков и выручки', XLS.section)]), 0, COLS-1);
+  const COST_COL = 2, SPEND_COL = 5, PROFIT_COL = 6;
+  put(pad([S('Модель авто',XLS.headNavy), S('Установленный деталь / компонент',XLS.headNavy),
+           S('Себестоимость детали (сум)',XLS.headNavy), S('Выплаты установщикам (кто / сколько)',XLS.headNavy),
+           S('Получено от клиента',XLS.headNavy),
+           S('Расходы: детали + мастера (сум)',XLS.headNavy), S('ЧИСТАЯ ПРИБЫЛЬ (сум)',XLS.headNavy)],
+          XLS.headNavy), 30);
+
+  const jobs = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  // Group by day so each date gets its own banner and running totals — makes it obvious
+  // at a glance which cars were done on which day.
+  const byDay = [];
+  jobs.forEach(j => {
+    const day = (j.date||'').slice(0,10);
+    const last = byDay[byDay.length-1];
+    if(last && last.day === day) last.jobs.push(j);
+    else byDay.push({day, jobs:[j]});
+  });
+  const firstJobRow = rows.length;
+  let totCost = 0, totSpend = 0, totProfit = 0, totPay = 0;
+  let jobIdx = 0;
+  byDay.forEach(group => {
+    // ---- day banner ----
+    const dayRevenue = group.jobs.reduce((s,j)=>s+usdToSom(installAmountUsd(j)), 0);
+    const daySpend = group.jobs.reduce((s,j)=>s+usdToSom(installCOGS(j))
+      + jobPayoutList(j).reduce((t,a)=>t+usdToSom(a.usd)+a.som, 0), 0);
+    const label = group.day
+      ? new Date(group.day+'T00:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'})
+      : 'без даты';
+    // The whole banner is one text band: keeping numbers out of it means the ИТОГО SUMs
+    // below cover only real job rows and can't double-count the day summaries.
+    const rDay = put(pad([S(label.toUpperCase() + '   ·   ' + group.jobs.length + ' авто'
+      + '   ·   получено ' + nfRu(dayRevenue) + ' сум'
+      + '   ·   расход ' + nfRu(daySpend) + ' сум'
+      + '   ·   прибыль ' + nfRu(dayRevenue-daySpend) + ' сум', XLS.dayBand)], XLS.dayBand), 22);
+    mergeRow(rDay, 0, COLS-1);
+    group.jobs.forEach(j => renderJob(j, jobIdx++));
+  });
+
+  function renderJob(j, idx){
+    const b = idx%2===0;                                   // first job banded, like the reference
+    const st = b
+      ? {car:XLS.carB, part:XLS.partB, cost:XLS.costB, payout:XLS.payoutB, cell:XLS.cellB, rev:XLS.revenueB}
+      : {car:XLS.car,  part:XLS.part,  cost:XLS.cost,  payout:XLS.payout,  cell:XLS.cell,  rev:XLS.revenue};
+    const parts = (j.items||[]).length ? j.items : [{name:'—', qty:0, productId:null}];
+    const payouts = jobPayoutList(j);
+    // "Baxromaka — 400 000 сум" per installer, one per line (amounts already summed per person).
+    const payoutTxt = payouts.map(a=>{
+      const m = [];
+      if(a.usd>0) m.push('$'+nfRu(a.usd));
+      if(a.som>0) m.push(nfRu(a.som)+' сум');
+      return nameOf(a.installerId) + ' — ' + (m.join(' + ') || 'не выплачено');
+    }).join('\n') || 'установщик не назначен';
+    // Everything in this section is reported in som — the currency the shop actually works in.
+    const revenue = usdToSom(installAmountUsd(j));
+    const payment = payouts.reduce((s,a)=>s+usdToSom(a.usd)+a.som, 0);
+    const partsSom = usdToSom(installCOGS(j));
+    const spend = partsSom + payment;                      // everything this car cost us
+    totCost += partsSom; totSpend += spend; totProfit += revenue-spend; totPay += payment;
+    const top = rows.length;
+    // The payout cell is merged down the whole job; give the first row extra height when the
+    // installer list needs more room than the part rows provide (e.g. 3 installers, 1 part).
+    const shortfall = Math.max(0, payoutTxt.split('\n').length*15 - parts.length*20);
+    parts.forEach((it, k) => {
+      const last = k === parts.length-1;
+      const carry = parts.length>1 ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
+      put(pad(k===0
+        ? [S(j.carModel||'—',st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
+           S(payoutTxt,st.payout), S(moneyTextRu(j.amountUsd,j.amountSom,j.amountTransfer,j.amountClick,j.amountTerminal),st.cell),
+           S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
+        : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
+           S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
+    });
+    const bottom = rows.length-1;
+    [0,3,4,5,6].forEach(c => mergeCol(c, top, bottom));
+  }
+  const lastJobRow = rows.length-1;
+
+  let rCostTotal = null, rSpendTotal = null, rProfitTotal = null;
+  if(jobs.length){
+    // SUMs skip the day-banner rows automatically: those columns hold text in A–E and the
+    // banner's own F/G day totals would double-count, so each total is summed per column
+    // over the data rows only — hence SUMIF-free explicit values as the cached result.
+    const sum = (c,v) => Fx(`SUM(${at(firstJobRow,c)}:${at(lastJobRow,c)})`, 0, v);
+    rCostTotal = rSpendTotal = rProfitTotal = put(pad([
+      S('ИТОГО ПО УСТАНОВКАМ:', XLS.totalLabel), S('', XLS.totalFill),
+      {...sum(COST_COL, totCost), s:XLS.totalCost},
+      S(totPay, XLS.totalExpense), S('', XLS.totalFill),
+      {...sum(SPEND_COL, totSpend), s:XLS.totalExpense},
+      {...sum(PROFIT_COL, totProfit), s:XLS.profitTotal}], XLS.totalFill), 22);
+    mergeRow(rCostTotal, 0, 1);
+  } else {
+    mergeRow(put(pad([S('за этот период установок нет', XLS.cell)], XLS.cell), 20), 0, COLS-1);
+  }
+
+  /* ---------------- 2. every part used, with what it cost in total ---------------- */
+  const partTotals = {};
+  d.installs.forEach(j => (j.items||[]).forEach(it => {
+    const key = it.productId || it.name;
+    if(!partTotals[key]) partTotals[key] = {name:it.name, qty:0, som:0};
+    partTotals[key].qty += it.qty||0;
+    partTotals[key].som += usdToSom(costOf(it));
+  }));
+  const partList = Object.values(partTotals).sort((a,b)=>b.som-a.som);
+  gap();
+  mergeRow(put([S('2. Итого по товарам — что израсходовано со склада', XLS.section)]), 0, COLS-1);
+  put(pad([S('Название товара',XLS.headBlue), S('Израсходовано (шт)',XLS.headBlue),
+           S('Себестоимость за шт (сум)',XLS.headBlue), S('',XLS.headBlue), S('',XLS.headBlue),
+           S('Итого (сум)',XLS.headBlue)], XLS.headBlue), 24);
+  const firstPartRow = rows.length;
+  partList.forEach((p,idx)=>{
+    const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
+    put(pad([S(p.name,cs), S(p.qty,ms), S(p.qty ? Math.round(p.som/p.qty) : 0, ms),
+             S('',cs), S('',cs), S(p.som,ms)], cs), 22);
+  });
+  if(partList.length){
+    const rPartTotal = put(pad([S('ВСЕГО ИЗРАСХОДОВАНО ТОВАРА:',XLS.totalLabel), S('',XLS.totalFill),
+      S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill),
+      Fx(`SUM(${at(firstPartRow,5)}:${at(rows.length-1,5)})`, XLS.totalExpense,
+         partList.reduce((s,p)=>s+p.som,0))], XLS.totalFill), 22);
+    mergeRow(rPartTotal, 0, 4);
+  } else {
+    mergeRow(put(pad([S('товары не расходовались', XLS.cell)], XLS.cell), 20), 0, COLS-1);
+  }
+
+  /* ---------------- 3. daily expenses — installer payouts are a real expense ---------------- */
+  // One line per installer for the whole period: name, the cars he worked on, and the
+  // overall money he was given — not split across a dozen rows.
+  const perInstaller = {};
+  d.installs.forEach(j => jobPayoutList(j).forEach(a => {
+    if(!perInstaller[a.installerId]) perInstaller[a.installerId] = {som:0, cars:{}, dates:[]};
+    const p = perInstaller[a.installerId];
+    p.som += usdToSom(a.usd) + a.som;
+    const car = j.carModel || 'без модели';
+    p.cars[car] = (p.cars[car]||0) + 1;
+    if(j.date) p.dates.push(j.date.slice(0,10));
+  }));
+  const payLines = Object.keys(perInstaller).map(id => {
+    const p = perInstaller[id];
+    const cars = Object.keys(p.cars).map(c => p.cars[c]>1 ? c+' ×'+p.cars[c] : c);
+    const jobCount = Object.keys(p.cars).reduce((s,c)=>s+p.cars[c], 0);
+    p.dates.sort();
+    return {
+      date: p.dates.length ? (p.dates[0] === p.dates[p.dates.length-1]
+              ? p.dates[0] : p.dates[0]+' — '+p.dates[p.dates.length-1]) : '',
+      article: nameOf(id),
+      category: cars.join(', '),
+      form: nfRu(p.som) + ' сум',
+      total: p.som,
+    };
+  });
+  // Those payouts are already listed above; don't repeat them among the general expenses.
+  const groupedPayExpenseIds = new Set();
+  d.installs.forEach(j => (state.expenses||[]).forEach(e => {
+    if(e.type === 'installation_pay' && e.installId === j.id) groupedPayExpenseIds.add(e.id);
+  }));
+  // "Категория" carries the note the user typed, so the reason for the money is on the row.
+  const expLines = payLines.concat(d.expenses.filter(e=>!groupedPayExpenseIds.has(e.id)).map(e=>({
+    date: (e.date||'').slice(0,10),
+    article: e.type==='installation_pay' && e.installerId ? nameOf(e.installerId) : ruExpType(e.type),
+    category: e.note || '—',
+    form: moneyTextRu(e.amountUsd, e.amountSom, 0),
+    total: usdToSom(e.amountUsd||0) + (e.amountSom||0),
+  }))).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  gap();
+  mergeRow(put([S('3. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
+  const EXP_MONEY_COL = 3;
+  put(pad([S('Кому / за что',XLS.headBlue), S('Машина / заметка',XLS.headBlue),
+           S('Выдано',XLS.headBlue), S('Сумма (сум)',XLS.headBlue),
+           S('Дата',XLS.headBlue)], XLS.headBlue), 24);
+  const firstExpRow = rows.length;
+  expLines.forEach((e,idx)=>{
+    const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
+    put(pad([S(e.article,cs), S(e.category,cs), S(e.form,cs), S(e.total,ms), S(e.date,cs)], cs), 22);
+  });
+  let rExpTotal = null;
+  if(expLines.length){
+    rExpTotal = put(pad([S('ИТОГО РАСХОДЫ:',XLS.totalLabel), S('',XLS.totalFill), S('',XLS.totalFill),
+                     Fx(`SUM(${at(firstExpRow,EXP_MONEY_COL)}:${at(rows.length-1,EXP_MONEY_COL)})`, XLS.totalExpense,
+                        expLines.reduce((s,e)=>s+e.total,0))],
+                    XLS.totalFill), 22);
+    mergeRow(rExpTotal, 0, EXP_MONEY_COL-1);
+  } else {
+    mergeRow(put(pad([S('за этот период расходов нет', XLS.cell)], XLS.cell), 20), 0, COLS-1);
+  }
+
+  /* ---------------- 3. counter sales · 4. purchases (same visual language) ----------------
+     Appended only when there is something to show, so a shop that only does installations
+     gets exactly the two-section layout of the reference workbook. */
+  let extraNo = 3;
+  const plainBlock = (title, headers, lines, moneyCol) => {
+    if(!lines.length) return;
+    gap();
+    mergeRow(put([S((++extraNo)+'. '+title, XLS.section)]), 0, COLS-1);
+    put(pad(headers.map(h=>S(h,XLS.headBlue)), XLS.headBlue), 24);
+    const first = rows.length;
+    lines.forEach((cells,idx)=>{
+      const b = idx%2===1;
+      put(cells.map((v,c)=> c===moneyCol ? S(v, b?XLS.expMoneyB:XLS.expMoney) : S(v, b?XLS.expCellB:XLS.expCell)), 22);
+    });
+    const blockTotal = lines.reduce((s,cells)=>s+(Number(cells[moneyCol])||0), 0);
+    const rTot = put(pad([S('ИТОГО:',XLS.totalLabel)], XLS.totalFill).map((v,c)=>
+      c===moneyCol ? Fx(`SUM(${at(first,moneyCol)}:${at(rows.length-1,moneyCol)})`, XLS.totalRevenue, blockTotal) : v), 22);
+    mergeRow(rTot, 0, moneyCol-1);
+  };
+  plainBlock('Продажи в магазине',
+    ['Дата','Проданные товары','Кассир','Форма оплаты','Получено от клиента','','Сумма (сум)'],
+    [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>[
+      new Date(s.date).toLocaleDateString('ru-RU'),
+      (s.items||[]).map(i=>i.name+' ×'+i.qty).join(', '),
+      s.cashier||'', payMethodLabelRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal),
+      moneyTextRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal), '',
+      usdToSom(s.totalUsd||0)]), 6);
+  plainBlock('Закупки у поставщиков',
+    ['Дата','Закупленные товары','Поставщик','Примечание','','','Сумма (сум)'],
+    [...d.purchases].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(p=>{
+      const sup = state.suppliers.find(s=>s.id===p.supplierId);
+      return [p.date||'', (p.items||[]).map(i=>i.name+' ×'+i.qty).join(', '),
+              sup?sup.name:'—', p.note||'', '', '', usdToSom(p.totalUsd||0)];
+    }), 6);
+
+  /* ---------------- patch the KPI formulas now that every row number is known ---------------- */
+  const costRef = rCostTotal!=null ? at(rCostTotal,COST_COL) : null;
+  // Выручка is no longer its own column — it is расходы + прибыль, which is the same number.
+  const revRef  = rSpendTotal!=null
+    ? at(rSpendTotal,SPEND_COL)+'+'+at(rProfitTotal,PROFIT_COL) : null;
+  const expRef  = rExpTotal!=null  ? at(rExpTotal,EXP_MONEY_COL) : null;
+  // Values are computed here as well as referenced by formula, so the cards read correctly
+  // even in a viewer that never recalculates.
+  const vRevenue  = totSpend + totProfit;                  // = money taken from clients
+  const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
+  const vHanded   = vRevenue - vExpenses;                  // сдано боссу
+  const vProfit   = vHanded - totCost;                     // real profit after parts
+  const kpi = rows[rKpi].c;
+  kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
+  kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
+  kpi[3] = Fx(`${at(rKpi,0)}-${at(rKpi,2)}`, XLS.kpiNavy, vHanded);
+  kpi[5] = costRef ? Fx(costRef, XLS.kpiPurple, totCost) : S(totCost, XLS.kpiPurple);
+  kpi[6] = Fx(`${at(rKpi,3)}-${at(rKpi,5)}`, XLS.kpiAmber, vProfit);
+
+  const blob = buildXlsxBlob([
+    {name:'Финансовый Отчет', rows, widths:[15,22,16,26,30,17,17],
+     opts:{print:true, merges, orientation:'landscape', fitToHeight:0}},
+  ]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = allTime
+    ? `gazmetprod-otchet_ves-period_${new Date().toISOString().slice(0,10)}.xlsx`
+    : `gazmetprod-otchet_${range.from||'nachalo'}_${range.to||'segodnya'}.xlsx`;
+  a.click();
+}
+
 /* =================== HELP / GUIDE =================== */
 const HELP_CONTENT = {
   en: {
@@ -3019,7 +3678,7 @@ const HELP_CONTENT = {
       {h:'💸 Expenses', body:`See ALL expenses including purchases. Click any colored type chip or KPI card to filter the list. Total of filtered shown at top.`},
       {h:'👥 Installers & Install Jobs', body:`Track who installed what and how much they were paid. Pay can be USD, SOM, or both — system converts to total automatically.`},
       {h:'⚠ Defectives & Stock changes', body:`Dashboard highlights any defective reports or manual stock edits made by the seller. Investigate if numbers look suspicious.`},
-      {h:'📁 Archive', body:`Pick a date range (last 7 / 30 days, this month, custom) to see <b>full report</b>: revenue, COGS, profit, sales list, install jobs list, products sold breakdown. Download as HTML file or print as PDF.`},
+      {h:'📁 Archive', body:`Pick a date range (last 7 / 30 days, this month, custom) to see <b>full report</b>: revenue, COGS, profit, sales list, install jobs list, products sold breakdown. Download as <b>Excel (.xlsx)</b> or HTML file, or print as PDF. The Excel file has sheets for Summary, Sales (with payment types), Expenses, Install jobs, Purchases, and Products sold. There's also a quick Excel button on the Dashboard for an all-time export.`},
       {h:'⚙ Settings', body:`Change USD/SOM exchange rate (used everywhere). Export full backup as JSON. Import to restore. Theme switcher (light/dark) is at the bottom of the sidebar.`},
     ],
     flow: [
@@ -3051,7 +3710,7 @@ const HELP_CONTENT = {
       {h:'💸 Расходы', body:`Видны ВСЕ расходы, включая закупки. Кликайте по цветным типам или карточкам сверху чтобы отфильтровать. Сумма по фильтру — сверху списка.`},
       {h:'👥 Установщики', body:`Видно кто что устанавливал и сколько получил. Выплата может быть USD, СОМ или вместе — система суммирует по курсу.`},
       {h:'⚠ Брак и изменения остатков', body:`Панель подсвечивает брак и ручные правки остатков от продавца. Проверяйте если цифры выглядят странно.`},
-      {h:'📁 Архив', body:`Выберите период (7/30 дней, этот месяц, свой) — увидите <b>полный отчёт</b>: выручка, себ., прибыль, продажи, установки, разбивка по товарам. Скачайте как HTML или распечатайте в PDF.`},
+      {h:'📁 Архив', body:`Выберите период (7/30 дней, этот месяц, свой) — увидите <b>полный отчёт</b>: выручка, себ., прибыль, продажи, установки, разбивка по товарам. Скачайте как <b>Excel (.xlsx)</b> или HTML, или распечатайте в PDF. В Excel-файле листы: Сводка, Продажи (с типами оплаты), Расходы, Установки, Закупки, Проданные товары. На Панели тоже есть кнопка Excel — выгрузка за всё время.`},
       {h:'⚙ Настройки', body:`Курс USD/СОМ (используется везде). Экспорт всей базы в JSON. Восстановление из JSON. Тема (светлая/тёмная) — внизу левого меню.`},
     ],
     flow: [
@@ -3083,7 +3742,7 @@ const HELP_CONTENT = {
       {h:"💸 Xarajatlar", body:"BARCHA xarajatlar (xaridlar ham). Rangli chiplar yoki yuqoridagi kartalar — filtr. Filtr summasi yuqorida."},
       {h:'👥 Ustalar', body:`Kim nima o'rnatgani va qancha olgani ko'rinadi. To'lov USD, SOM yoki ikkalasi bo'lishi mumkin — kurs bo'yicha jamlanadi.`},
       {h:"⚠ Brak va qoldiq o'zgarishlari", body:"Panel sotuvchi qilgan brak hisobotlari va qoldiq o'zgarishlarini ajratib ko'rsatadi. Shubhali bo'lsa tekshiring."},
-      {h:'📁 Arxiv', body:`Davrni tanlang (7/30 kun, shu oy, o'zingiz). <b>To'liq hisobot</b>: daromad, tannarx, foyda, sotuvlar, o'rnatishlar, mahsulotlar bo'yicha taqsimot. HTML faylga yuklang yoki PDF chop eting.`},
+      {h:'📁 Arxiv', body:`Davrni tanlang (7/30 kun, shu oy, o'zingiz). <b>To'liq hisobot</b>: daromad, tannarx, foyda, sotuvlar, o'rnatishlar, mahsulotlar bo'yicha taqsimot. <b>Excel (.xlsx)</b> yoki HTML faylga yuklang, yoki PDF chop eting. Excel faylida varaqlar: Xulosa, Sotuvlar (to'lov turlari bilan), Xarajatlar, O'rnatishlar, Xaridlar, Sotilgan tovarlar. Bosh sahifada ham Excel tugmasi bor — butun davr uchun.`},
       {h:"⚙ Sozlamalar", body:"USD/SOM kursi (hamma joyda). Butun bazani JSON ga eksport. JSON dan tiklash. Tema (yorug'/qora) — chap menyu pastida."},
     ],
     flow: [
@@ -3155,7 +3814,7 @@ function renderRatePreview(){
   const typed = Number(document.getElementById('set-rate')?.value) || state.rate;
   if(!typed || typed<=0){ box.innerHTML = ''; return;}
   const totalRev = (state.sales||[]).reduce((s,x)=>s+(x.totalUsd||0),0);
-  const cogs = (state.sales||[]).reduce((s,x)=>s+saleCOGS(x),0);
+  const cogs = periodCOGS(state.sales, state.installs);
   const totalExp = (state.expenses||[]).reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
   const purchExp = (state.expenses||[]).filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
   const opExp = totalExp - purchExp;
