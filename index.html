@@ -288,6 +288,9 @@ const LOCALES = {
     exportPeriod:'Excel will cover this period', excelByPeriod:'Excel for a period',
     nothingInPeriod:'No records in the selected dates — pick another period.',
     editViaPurchase:'Created from a purchase — opens the purchase to edit',
+    workerRole:'Worker type', roleCar:'Car installer', roleButka:'Butka',
+    roleHint:'Butka workers are paid without attaching a car.',
+    butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -412,6 +415,9 @@ const LOCALES = {
     exportPeriod:'Excel будет за этот период', excelByPeriod:'Excel за период',
     nothingInPeriod:'За выбранные даты записей нет — выберите другой период.',
     editViaPurchase:'Создан из закупки — откроется закупка для редактирования',
+    workerRole:'Тип работника', roleCar:'Установщик авто', roleButka:'Будка',
+    roleHint:'Работникам будки оплата записывается без привязки к авто.',
+    butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -536,6 +542,9 @@ const LOCALES = {
     exportPeriod:'Excel shu davr uchun bo\'ladi', excelByPeriod:'Davr uchun Excel',
     nothingInPeriod:"Tanlangan sanalarda yozuv yo'q — boshqa davrni tanlang.",
     editViaPurchase:'Xariddan yaratilgan — tahrirlash uchun xarid ochiladi',
+    workerRole:'Ishchi turi', roleCar:'Avto ustasi', roleButka:'Butka',
+    roleHint:"Butka ishchilariga to'lov avtoga bog'lanmasdan yoziladi.",
+    butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -2054,12 +2063,18 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
   }
   const installerOpts = state.installers.map(i=>{
     const sel = preselectInstallerId && i.id===preselectInstallerId ? ' selected' : '';
-    return `<option value="${i.id}"${sel}>${escapeHtml(i.name)}</option>`;
+    const tag = (i.job==='butka') ? ' — '+t('roleButka') : '';
+    return `<option value="${i.id}"${sel}>${escapeHtml(i.name)}${tag}</option>`;
   }).join('');
-  // Build the Install (car) picker — required when installs exist.
+  // Which worker is selected decides whether a car has to be picked at all.
+  const chosen = preselectInstallerId || (state.installers[0]||{}).id;
+  const butka = isButkaWorker(chosen);
+  // Build the Install (car) picker — required for car fitters only.
   const installs = [...state.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   let installBlock = '';
-  if(installs.length){
+  if(butka){
+    installBlock = `<div style="margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:6px;color:var(--muted);font-size:12px">${t('butkaNoCarNeeded')}</div>`;
+  } else if(installs.length){
     const installOpts = installs.map(j=>{
       const sel = preselectInstallId && j.id===preselectInstallId ? ' selected' : '';
       const car = j.carModel || installPayees(j).join(', ') || '?';
@@ -2074,7 +2089,7 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
   }
   box.innerHTML = `
     <label style="margin-top:10px">${t('installerCol')} <span style="color:var(--neg)">*</span></label>
-    <select id="e-installer" required>${installerOpts}</select>
+    <select id="e-installer" required onchange="renderExpenseExtras(this.value)">${installerOpts}</select>
     ${installBlock}`;
 }
 function saveExpense(id){
@@ -2090,7 +2105,8 @@ function saveExpense(id){
   if(type === 'installation_pay'){
     installerId = document.getElementById('e-installer')?.value || '';
     if(!installerId){ alert(t('pickInstallerRequired')); return;}
-    if(state.installs.length){
+    // Butka fitters are paid for booth work, so no car is attached to their payment.
+    if(!isButkaWorker(installerId) && state.installs.length){
       installId = document.getElementById('e-install')?.value || '';
       if(!installId){ alert(t('pickInstallForPay')); return;}
     }
@@ -2267,7 +2283,7 @@ function viewInstallers(){
         : '';
       return `<tr>
         <td><b style="cursor:pointer;color:var(--accent);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px" onclick="openInstallerHistory('${i.id}')" title="${t('paymentHistory')}">${escapeHtml(i.name)}</b>${carsLine}</td>
-        <td>${escapeHtml(i.phone||'')}</td>
+        <td>${escapeHtml(i.phone||'')}${i.job==='butka'?`<div><span class="chip warn" style="margin-top:3px">${t('roleButka')}</span></div>`:''}</td>
         <td>${jobs.length}</td>
         <td>${fmtInstallerPayCell(week)}</td>
         <td>${fmtInstallerPayCell(month)}</td>
@@ -2289,7 +2305,7 @@ function viewInstallers(){
       }).join('') || `<span style="color:var(--muted)">—</span>`;
       return `<tr>
         <td><b>${escapeHtml(i.name)}</b></td>
-        <td>${escapeHtml(i.phone||'')}</td>
+        <td>${escapeHtml(i.phone||'')}${i.job==='butka'?`<div><span class="chip warn" style="margin-top:3px">${t('roleButka')}</span></div>`:''}</td>
         <td>${jobs.length}</td>
         <td>${eventsHtml}</td>
         <td style="text-align:right">
@@ -2311,11 +2327,18 @@ function viewInstallers(){
     </table></div>`;
 }
 function openInstaller(id){
-  const i = id ? state.installers.find(x=>x.id===id) : {name:'',phone:''};
+  const i = id ? state.installers.find(x=>x.id===id) : {name:'',phone:'',job:'car'};
+  const job = i.job || 'car';                 // older records have no job — treat as car fitter
   modal(`
     <h3>${id?t('editInstaller'):t('newInstaller')}</h3>
     <label>${t('name')}</label><input id="i-name" value="${escapeAttr(i.name)}">
     <label style="margin-top:10px">${t('phone')}</label><input id="i-phone" value="${escapeAttr(i.phone||'')}">
+    <label style="margin-top:10px">${t('workerRole')}</label>
+    <select id="i-job">
+      <option value="car"${job==='car'?' selected':''}>${t('roleCar')}</option>
+      <option value="butka"${job==='butka'?' selected':''}>${t('roleButka')}</option>
+    </select>
+    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">${t('roleHint')}</small>
     <div class="modal-actions">
       <button onclick="closeModal()">${t('cancel')}</button>
       <button class="primary" onclick="saveInstaller('${id||''}')">${t('save')}</button>
@@ -2324,11 +2347,16 @@ function openInstaller(id){
 function saveInstaller(id){
   const name = document.getElementById('i-name').value.trim();
   if(!name){ alert(t('required')); return;}
-  const obj = {name, phone:document.getElementById('i-phone').value.trim()};
+  const obj = {name, phone:document.getElementById('i-phone').value.trim(),
+               job: document.getElementById('i-job')?.value || 'car'};
   if(id) Object.assign(state.installers.find(x=>x.id===id), obj);
   else state.installers.push({id:uid(),...obj});
   save(); closeModal(); viewInstallers();
 }
+// Butka fitters are paid for booth work, not for a car, so no install is linked to them.
+const isButkaWorker = id => (state.installers.find(x=>x.id===id)||{}).job === 'butka';
+// Workers who can be put on a car install (everyone except butka fitters).
+const carInstallers = () => state.installers.filter(i => i.job !== 'butka');
 function delInstaller(id){ if(!confirm(t('confirmDelete'))) return; state.installers = state.installers.filter(x=>x.id!==id); save(); viewInstallers();}
 
 /* =================== INSTALL JOBS =================== */
@@ -2522,7 +2550,8 @@ function openInstall(id){
 function cancelInstall(){ editingInstallId = null; closeModal(); }
 function renderInstallerLines(){
   const box = document.getElementById('j-installers'); if(!box) return;
-  const opts = state.installers.map(i=>`<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
+  // Butka fitters don't work on cars, so they are not offered on an install job.
+  const opts = carInstallers().map(i=>`<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
   box.innerHTML = installerDraft.map((a,idx)=>`
     <div style="display:grid;grid-template-columns:1fr 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px">
       <select onchange="updateInstallerLine(${idx},this.value)">${opts.replace(`value="${a.installerId}"`,`value="${a.installerId}" selected`)}</select>
@@ -2530,8 +2559,9 @@ function renderInstallerLines(){
     </div>`).join('');
 }
 function addInstallerLine(){
-  if(!state.installers.length) return;
-  installerDraft.push({installerId: state.installers[0].id});
+  const list = carInstallers();
+  if(!list.length) return;
+  installerDraft.push({installerId: list[0].id});
   renderInstallerLines();
 }
 function removeInstallerLine(idx){
