@@ -293,6 +293,7 @@ const LOCALES = {
     butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
     withoutCar:'Without a car',
     searchProductHint:'Search by name, code or supplier…', nothingFound:'Nothing found',
+    cashSom:'Cash (SOM)', inCash:'in cash', rateSaved:'Rate saved',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
@@ -424,6 +425,7 @@ const LOCALES = {
     butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
     withoutCar:'Без авто',
     searchProductHint:'Поиск по названию, коду или поставщику…', nothingFound:'Ничего не найдено',
+    cashSom:'Наличные (сум)', inCash:'наличными', rateSaved:'Курс сохранён',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
@@ -555,6 +557,7 @@ const LOCALES = {
     butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
     withoutCar:'Avtosiz',
     searchProductHint:'Nomi, kodi yoki yetkazuvchi bo\'yicha qidirish…', nothingFound:'Hech narsa topilmadi',
+    cashSom:'Naqd (som)', inCash:'naqd', rateSaved:'Kurs saqlandi',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
@@ -2028,9 +2031,10 @@ function renderExpensesList(){
     })
     .map(({e}) => e);
   const list = expenseFilter ? all.filter(e=>e.type===expenseFilter) : all;
-  // Real cash totals — kept per currency, never converted into a single number.
+  // Cash and cashless are summed apart — Click / terminal money never touches the till.
   const sumUsd = list.reduce((s,e)=>s+(e.amountUsd||0),0);
   const sumSom = list.reduce((s,e)=>s+(e.amountSom||0),0);
+  const sumCashless = list.reduce((s,e)=>s+expenseCashlessSom(e),0);
   const muted = `<span style="color:var(--muted)">—</span>`;
   const rows = list.map(e=>{
     // A 'purchase' expense that was generated from a purchase record must be edited on the
@@ -2045,16 +2049,23 @@ function renderExpensesList(){
       <td><span class="chip exp-${e.type}">${t('expense_'+e.type)}</span></td>
       <td>${(e.amountUsd||0)>0 ? `<b>${fmtUsd(e.amountUsd||0)}</b>` : muted}</td>
       <td>${(e.amountSom||0)>0 ? `<b>${fmtSom(e.amountSom||0)}</b>` : muted}</td>
+      <td>${expenseCashlessSom(e)>0
+        ? [['paidClick',e.amountClick],['paidTerminal',e.amountTerminal]]
+            .filter(([,v])=>(Number(v)||0)>0)
+            .map(([k,v])=>`<b style="color:var(--accent)">${fmtSom(v)}</b> <small style="color:var(--muted)">${t(k)}</small>`)
+            .join('<br>')
+        : muted}</td>
       <td>${isPayReason(e.installId)?`<span class="chip warn">${t('reason_'+e.installId)}</span> `:''}${escapeHtml(e.note||'')}</td>
       <td style="text-align:right;white-space:nowrap">${editBtn}<button class="danger" onclick="delExpense('${e.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
-  // Compose the running-sum line; show only the currencies that have non-zero totals.
+  // Cash and Click/terminal are listed separately so the till figure stays true.
   const sumParts = [];
-  if(sumSom>0) sumParts.push(`<b>${fmtSom(sumSom)}</b>`);
-  if(sumUsd>0) sumParts.push(`<b>${fmtUsd(sumUsd)}</b>`);
+  if(sumSom>0) sumParts.push(`<b>${fmtSom(sumSom)}</b> <small style="color:var(--muted)">${t('inCash')}</small>`);
+  if(sumUsd>0) sumParts.push(`<b>${fmtUsd(sumUsd)}</b> <small style="color:var(--muted)">${t('inCash')}</small>`);
+  if(sumCashless>0) sumParts.push(`<b style="color:var(--accent)">${fmtSom(sumCashless)}</b> <small style="color:var(--muted)">Click / ${t('paidTerminal')}</small>`);
   const sumLine = sumParts.length
-    ? sumParts.join(' <span style="color:var(--muted);margin:0 4px">·</span> ')
+    ? sumParts.join(' <span style="color:var(--muted);margin:0 4px">+</span> ')
     : `<span style="color:var(--muted)">—</span>`;
   document.getElementById('exp-list').innerHTML = `
     <div class="card" style="padding:8px 14px;margin-bottom:0;display:flex;justify-content:space-between;align-items:center;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">
@@ -2063,8 +2074,8 @@ function renderExpensesList(){
     </div>
     <div class="card" style="padding:0;border-radius:0 0 10px 10px;border-top:none">
     <table>
-      <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>USD</th><th>${t('paidSom')}</th><th>${t('note')}</th><th></th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+      <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>USD</th><th>${t('cashSom')}</th><th>Click / ${t('paidTerminal')}</th><th>${t('note')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
 }
 function openExpense(id){
@@ -2079,7 +2090,11 @@ function openExpense(id){
     <label style="margin-top:10px">${t('expType')}</label><select id="e-type" onchange="renderExpenseExtras()">${typeOpts}</select>
     <div class="row" style="margin-top:10px">
       <div class="col"><label>USD</label><input id="e-usd" type="number" step="0.01" value="${editing?(editing.amountUsd||0):0}"></div>
-      <div class="col"><label>SOM</label><input id="e-som" type="number" step="1" value="${editing?(editing.amountSom||0):0}" oninput="updateSomHint('e-som','e-som-hint')"><small id="e-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('cashSom')}</label><input id="e-som" type="number" step="1" value="${editing?(editing.amountSom||0):0}" oninput="updateSomHint('e-som','e-som-hint')"><small id="e-som-hint" style="color:var(--muted);font-size:11px"></small></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="col"><label>${t('paidClick')} (SOM)</label><input id="e-click" type="number" step="1" value="${editing?(editing.amountClick||0):0}" oninput="updateSomHint('e-click','e-click-hint')"><small id="e-click-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('paidTerminal')} (SOM)</label><input id="e-term" type="number" step="1" value="${editing?(editing.amountTerminal||0):0}" oninput="updateSomHint('e-term','e-term-hint')"><small id="e-term-hint" style="color:var(--muted);font-size:11px"></small></div>
     </div>
     <div id="e-extras"></div>
     <label id="e-note-label" style="margin-top:10px">${t('note')}</label>
@@ -2144,7 +2159,9 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
 function saveExpense(id){
   const amountUsd = Number(document.getElementById('e-usd').value)||0;
   const amountSom = Number(document.getElementById('e-som').value)||0;
-  if(amountUsd<=0 && amountSom<=0){ alert(t('invalidAmount')); return;}
+  const amountClick = Number(document.getElementById('e-click')?.value)||0;
+  const amountTerminal = Number(document.getElementById('e-term')?.value)||0;
+  if(amountUsd<=0 && amountSom<=0 && amountClick<=0 && amountTerminal<=0){ alert(t('invalidAmount')); return;}
   const type = document.getElementById('e-type').value;
   const date = document.getElementById('e-date').value||today();
   const note = document.getElementById('e-note').value.trim();
@@ -2167,6 +2184,8 @@ function saveExpense(id){
     existing.type = type;
     existing.amountUsd = amountUsd;
     existing.amountSom = amountSom;
+    existing.amountClick = amountClick;
+    existing.amountTerminal = amountTerminal;
     existing.note = note;
     if(installerId) existing.installerId = installerId;
     else delete existing.installerId;
@@ -2174,7 +2193,7 @@ function saveExpense(id){
     else delete existing.installId;
   } else {
     // Expenses don't track wire transfers, so they're auto-approved (no accountant queue).
-    const exp = {id:uid(), date, type, amountUsd, amountSom, note, approved:true};
+    const exp = {id:uid(), date, type, amountUsd, amountSom, amountClick, amountTerminal, note, approved:true};
     if(installerId) exp.installerId = installerId;
     if(installId) exp.installId = installId;
     state.expenses.push(exp);
@@ -2452,13 +2471,19 @@ function viewInstalls(){
     .filter(j => !installsCarFilter || j.carModel === installsCarFilter)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   // Real-cash sums per currency, separately, never converted into a single number.
-  const sumChargedSom = filtered.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j), 0);
+  const sumChargedSom = filtered.reduce((s,j)=>s+(j.amountSom||0), 0);          // cash only
+  const sumChargedCashless = filtered.reduce((s,j)=>s+installCashlessSom(j), 0); // Click/terminal/transfer
   const sumChargedUsd = filtered.reduce((s,j)=>s+(j.amountUsd||0), 0);
   const sumPaidSom = filtered.reduce((s,j)=>s+installPayoutTotals(j).som, 0);
   const sumPaidUsd = filtered.reduce((s,j)=>s+installPayoutTotals(j).usd, 0);
   const moneyKpis = isBoss() ? `
     <div class="row" style="margin-top:12px">
-      <div class="kpi"><div class="l">${t('charged')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumChargedSom, sumChargedUsd, {color:'var(--pos)'})}</div></div>
+      <div class="kpi"><div class="l">${t('charged')}</div>
+        <div style="margin-top:6px">${fmtTwoCurrencyStack(sumChargedSom, sumChargedUsd, {color:'var(--pos)'})}</div>
+        <div style="color:var(--muted);font-size:11px">${t('inCash')}</div>
+        ${sumChargedCashless>0?`<div style="color:var(--accent);font-weight:700;font-size:15px;margin-top:4px">+ ${fmtSom(sumChargedCashless)}</div>
+        <div style="color:var(--muted);font-size:11px">Click / ${t('paidTerminal')} / ${t('paidTransfer')}</div>`:''}
+      </div>
       <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumPaidSom, sumPaidUsd, {color:'var(--neg)'})}</div></div>
     </div>` : '';
   let lastDay = null;
@@ -2789,12 +2814,15 @@ function delInstall(id){
 }
 
 /* =================== APPROVALS (accountant) =================== */
-// Cashless som on a sale / install: bank transfer, Click and card terminal.
+// Cashless som on a sale / install / expense: bank transfer, Click and card terminal.
+// Kept apart from cash everywhere, because that money never passes through the till.
 const saleCashlessSom = s => (Number(s.paidTransfer)||0) + (Number(s.paidClick)||0) + (Number(s.paidTerminal)||0);
 const installCashlessSom = j => (Number(j.amountTransfer)||0) + (Number(j.amountClick)||0) + (Number(j.amountTerminal)||0);
+const expenseCashlessSom = e => (Number(e.amountClick)||0) + (Number(e.amountTerminal)||0);
+const expenseTotalUsd = e => (Number(e.amountUsd)||0) + somToUsd((Number(e.amountSom)||0) + expenseCashlessSom(e));
 const saleAmountUsd = s => (Number(s.paidUsd)||0) + somToUsd((Number(s.paidSom)||0) + saleCashlessSom(s));
 const installAmountUsd = j => (Number(j.amountUsd)||0) + somToUsd((Number(j.amountSom)||0) + installCashlessSom(j));
-const expenseAmountUsd = e => (Number(e.amountUsd)||0) + somToUsd(Number(e.amountSom)||0);
+const expenseAmountUsd = e => expenseTotalUsd(e);   // includes Click / terminal
 function pendingTotals(){
   let usd = 0;
   let counts = {sales:0, installs:0, expenses:0};
@@ -2902,8 +2930,8 @@ function viewDashboard(){
   const installRev = j => installAmountUsd(j);   // cash + transfer + Click
   const totalRev = state.sales.reduce((s,x)=>s+x.totalUsd,0)
                  + state.installs.reduce((s,j)=>s+installRev(j),0);
-  const totalExp = state.expenses.reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
-  const purchExp = state.expenses.filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const totalExp = state.expenses.reduce((s,e)=>s+expenseTotalUsd(e),0);
+  const purchExp = state.expenses.filter(e=>e.type==='purchase').reduce((s,e)=>s+expenseTotalUsd(e),0);
   const opExp = totalExp - purchExp;
   const cogs = periodCOGS(state.sales, state.installs);
   const profit = totalRev - cogs - opExp;
@@ -2911,14 +2939,14 @@ function viewDashboard(){
                 + state.installs.filter(j=>isWithinDays(j.date,7)).reduce((s,j)=>s+installRev(j),0);
   const monthRev = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+x.totalUsd,0)
                  + state.installs.filter(j=>isWithinDays(j.date,30)).reduce((s,j)=>s+installRev(j),0);
-  const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
-  const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0);
+  const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const weekCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,7)),
                               state.installs.filter(j=>isWithinDays(j.date,7)));
   const monthCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,30)),
                                state.installs.filter(j=>isWithinDays(j.date,30)));
-  const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
-  const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0);
+  const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const weekProfit = weekRev - weekCogs - weekOpExp;
   const monthProfit = monthRev - monthCogs - monthOpExp;
   const lowStock = state.products.filter(p=>p.stock<=(p.minStock||0));
@@ -2960,7 +2988,19 @@ function viewDashboard(){
       <div class="kpi"><div class="l">${t('thisWeekRE')}</div><div class="v" style="font-size:16px">${fmtUsd(weekRev)} <span style="color:var(--muted)">/ ${fmtUsd(weekExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(weekRev))} / ${fmtSom(usdToSom(weekExp))}</div><div style="color:${weekProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(weekProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(weekProfit))})</span></div></div>
       <div class="kpi"><div class="l">${t('thisMonthRE')}</div><div class="v" style="font-size:16px">${fmtUsd(monthRev)} <span style="color:var(--muted)">/ ${fmtUsd(monthExp)}</span></div><div style="color:var(--muted);font-size:11px;margin-top:2px">${fmtSom(usdToSom(monthRev))} / ${fmtSom(usdToSom(monthExp))}</div><div style="color:${monthProfit>=0?'#7ce38b':'#ffb4b4'};font-size:13px;margin-top:2px">${t('netProfit')}: ${fmtUsd(monthProfit)} <span style="color:var(--muted);font-weight:400">(${fmtSom(usdToSom(monthProfit))})</span></div></div>
       <div class="kpi"><div class="l">${t('receivedUsd')}</div><div class="v">${fmtUsd(state.sales.reduce((s,x)=>s+(x.paidUsd||0),0) + state.installs.reduce((s,j)=>s+(j.amountUsd||0),0))}</div></div>
-      <div class="kpi"><div class="l">${t('receivedSom')}</div><div class="v">${fmtSom(state.sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x),0) + state.installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0))}</div></div>
+      ${(() => {
+        // Cash in the till and Click/terminal money are two different pots — never merged.
+        const cash = state.sales.reduce((s,x)=>s+(x.paidSom||0),0)
+                   + state.installs.reduce((s,j)=>s+(j.amountSom||0),0);
+        const cashless = state.sales.reduce((s,x)=>s+saleCashlessSom(x),0)
+                       + state.installs.reduce((s,j)=>s+installCashlessSom(j),0);
+        return `<div class="kpi"><div class="l">${t('receivedSom')}</div>
+          <div class="v" style="font-size:18px">${fmtSom(cash)}</div>
+          <div style="color:var(--muted);font-size:11px">${t('inCash')}</div>
+          ${cashless>0?`<div style="color:var(--accent);font-weight:700;font-size:15px;margin-top:4px">+ ${fmtSom(cashless)}</div>
+          <div style="color:var(--muted);font-size:11px">Click / ${t('paidTerminal')} / ${t('paidTransfer')}</div>`:''}
+        </div>`;
+      })()}
     </div>
     <div class="row" style="margin-top:12px">
       <div class="kpi"><div class="l">${t('stockUnits')}</div><div class="v">${totalUnits}</div></div>
@@ -3109,7 +3149,7 @@ function archiveData(range){
   const totalRevSom = sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x),0)
                     + installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0);
   const cogs = periodCOGS(sales, installs);
-  const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0)+somToUsd(e.amountSom||0),0);
+  const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+expenseTotalUsd(e),0);
   // Real cash out per currency in this period (op expenses only)
   const opExpUsd = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountUsd||0),0);
   const opExpSom = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+(e.amountSom||0),0);
@@ -3572,13 +3612,17 @@ function downloadExcelReport(allTime){
   mergeRow(rKpi,0,1); mergeRow(rKpi,3,4);
 
   // Client money is reported in the currency it actually arrived in — som stays som, USD stays USD.
-  const gotSom = d.sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x), 0)
-               + d.installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j), 0);
+  // Cash and cashless are reported apart — Click / terminal money never reaches the till.
+  const gotCash = d.sales.reduce((s,x)=>s+(x.paidSom||0), 0)
+                + d.installs.reduce((s,j)=>s+(j.amountSom||0), 0);
+  const gotCashless = d.sales.reduce((s,x)=>s+saleCashlessSom(x), 0)
+                    + d.installs.reduce((s,j)=>s+installCashlessSom(j), 0);
   const gotUsd = d.sales.reduce((s,x)=>s+(x.paidUsd||0), 0)
                + d.installs.reduce((s,j)=>s+(j.amountUsd||0), 0);
   const gotParts = [];
-  if(gotSom>0) gotParts.push(nfRu(gotSom)+' сум');
-  if(gotUsd>0) gotParts.push('$'+nfRu(gotUsd));
+  if(gotCash>0) gotParts.push('наличными ' + nfRu(gotCash)+' сум');
+  if(gotUsd>0) gotParts.push('наличными $'+nfRu(gotUsd));
+  if(gotCashless>0) gotParts.push('Click/терминал ' + nfRu(gotCashless)+' сум');
   const rCap = put(pad([
     S(gotParts.join(' + ') || 'нет поступлений', XLS.capGrey), S('', XLS.kpiFillGrey),
     S('Удержано из кассы', XLS.capGrey),
@@ -3753,8 +3797,8 @@ function downloadExcelReport(allTime){
       date: (e.date||'').slice(0,10),
       article: e.type==='installation_pay' && e.installerId ? nameOf(e.installerId) : ruExpType(e.type),
       category: [reason, e.note].filter(Boolean).join(' · ') || '—',
-      form: moneyTextRu(e.amountUsd, e.amountSom, 0),
-      total: usdToSom(e.amountUsd||0) + (e.amountSom||0),
+      form: moneyTextRu(e.amountUsd, e.amountSom, 0, e.amountClick, e.amountTerminal),
+      total: usdToSom(e.amountUsd||0) + (e.amountSom||0) + expenseCashlessSom(e),
     };
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
@@ -4033,8 +4077,17 @@ function saveRate(){
   const v = Number(document.getElementById('set-rate').value);
   if(!v || v<=0){ alert(t('invalidAmount')); return;}
   state.rate = v; save(); updateRateLabel();
-  // Jump straight to the Dashboard so the boss sees the updated SOM picture immediately
-  goto('dash');
+  // Stay on Settings and confirm in place — jumping to the dashboard made it look
+  // as though nothing had been saved.
+  viewSettings();
+  const box = document.getElementById('rate-preview');
+  if(box){
+    box.insertAdjacentHTML('afterbegin',
+      `<div id="rate-saved" style="margin-bottom:10px;padding:8px 10px;border-radius:6px;
+        background:rgba(31,122,58,.12);border:1px solid var(--pos);color:var(--pos);font-weight:600">
+        ✓ ${t('rateSaved')}: 1$ = ${fmtNum(v)} som</div>`);
+    setTimeout(()=>document.getElementById('rate-saved')?.remove(), 4000);
+  }
 }
 function exportData(){
   const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
