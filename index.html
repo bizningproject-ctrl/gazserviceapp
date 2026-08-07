@@ -291,11 +291,6 @@ const LOCALES = {
     workerRole:'Worker type', roleCar:'Car installer', roleButka:'Butka',
     roleHint:'Butka workers are paid without attaching a car.',
     butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
-    jobStatus:'Car status', status_done:'Paid / nothing pending',
-    status_notPaidYet:'Mashina hali to\'lov qilmadi',
-    status_needFurgon:'Furgon qilish kerak',
-    jobStatusHint:'Mark why the money is not in yet. The installer can still be paid.',
-    awaitingMoney:'Cars waiting for money',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -423,11 +418,6 @@ const LOCALES = {
     workerRole:'Тип работника', roleCar:'Установщик авто', roleButka:'Будка',
     roleHint:'Работникам будки оплата записывается без привязки к авто.',
     butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
-    jobStatus:'Статус авто', status_done:'Оплачено / без долга',
-    status_notPaidYet:'Mashina hali to\'lov qilmadi',
-    status_needFurgon:'Furgon qilish kerak',
-    jobStatusHint:'Отметьте, почему деньги ещё не получены. Установщику всё равно можно заплатить.',
-    awaitingMoney:'Авто ждут оплату',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -555,11 +545,6 @@ const LOCALES = {
     workerRole:'Ishchi turi', roleCar:'Avto ustasi', roleButka:'Butka',
     roleHint:"Butka ishchilariga to'lov avtoga bog'lanmasdan yoziladi.",
     butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
-    jobStatus:'Avto holati', status_done:"To'landi / qarz yo'q",
-    status_notPaidYet:"Mashina hali to'lov qilmadi",
-    status_needFurgon:'Furgon qilish kerak',
-    jobStatusHint:"Pul nega hali kelmaganini belgilang. Ustaga baribir to'lash mumkin.",
-    awaitingMoney:"To'lov kutayotgan avtolar",
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -2375,9 +2360,6 @@ const carInstallers = () => state.installers.filter(i => i.job !== 'butka');
 function delInstaller(id){ if(!confirm(t('confirmDelete'))) return; state.installers = state.installers.filter(x=>x.id!==id); save(); viewInstallers();}
 
 /* =================== INSTALL JOBS =================== */
-/* Why a finished car has not brought money in yet. '' means nothing outstanding —
-   the installer can still be paid in every case, this only records the reason. */
-const JOB_STATUSES = ['', 'notPaidYet', 'needFurgon'];
 let installsRange = {from:'', to:''};
 let installsCarFilter = '';
 function setInstallsCarFilter(v){ installsCarFilter = v; viewInstalls(); }
@@ -2413,23 +2395,10 @@ function viewInstalls(){
   const sumChargedUsd = filtered.reduce((s,j)=>s+(j.amountUsd||0), 0);
   const sumPaidSom = filtered.reduce((s,j)=>s+installPayoutTotals(j).som, 0);
   const sumPaidUsd = filtered.reduce((s,j)=>s+installPayoutTotals(j).usd, 0);
-  // Cars that are finished but haven't brought money in, and what we already paid out on them.
-  const waiting = filtered.filter(j => j.status || (
-    (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && installCashlessSom(j) <= 0));
-  const waitingPaidOut = waiting.reduce((s,j)=>{
-    const p = installPayoutTotals(j); return s + p.som + usdToSom(p.usd);
-  }, 0);
-  const waitingKpi = waiting.length ? `
-      <div class="kpi" style="border-color:var(--danger-border)">
-        <div class="l">${t('awaitingMoney')}</div>
-        <div class="v" style="color:var(--neg)">${waiting.length}</div>
-        <div style="color:var(--muted);font-size:12px;margin-top:2px">${t('paidToInstaller')}: ${fmtSom(waitingPaidOut)}</div>
-      </div>` : '';
   const moneyKpis = isBoss() ? `
     <div class="row" style="margin-top:12px">
       <div class="kpi"><div class="l">${t('charged')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumChargedSom, sumChargedUsd, {color:'var(--pos)'})}</div></div>
       <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumPaidSom, sumPaidUsd, {color:'var(--neg)'})}</div></div>
-      ${waitingKpi}
     </div>` : '';
   let lastDay = null;
   const rows = filtered.map(j=>{
@@ -2459,13 +2428,9 @@ function viewInstalls(){
       .filter(([,amt]) => (Number(amt)||0) > 0)
       .map(([key,amt]) => `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t(key)}: ${fmtSom(amt)}</div>`)
       .join('');
-    // Why the money isn't in yet — shown next to the amount so the boss sees it at a glance.
-    const statusChip = j.status
-      ? `<div style="margin-top:3px"><span class="chip ${j.status==='needFurgon'?'warn':'bad'}">${t('status_'+j.status)}</span></div>`
-      : '';
-    const receivedCell = (unpaid
+    const receivedCell = unpaid
       ? `<span class="chip bad">${t('unpaid')}</span>`
-      : fmtDualPay(j.amountSom||0, j.amountUsd||0) + transferLine) + statusChip;
+      : fmtDualPay(j.amountSom||0, j.amountUsd||0) + transferLine;
     return dayRow + `<tr${unpaid?' class="unpaid"':''}>
       <td>${j.date}</td>
       <td>${carCell}</td>
@@ -2556,11 +2521,6 @@ function openInstall(id){
       <label>${t('carModelOther')}</label>
       <input id="j-car-other" type="text" placeholder="${t('carModelOtherHint')}" value="${escapeHtml(customCar)}">
     </div>
-    <label style="margin-top:12px">${t('jobStatus')}</label>
-    <select id="j-status">
-      ${JOB_STATUSES.map(s=>`<option value="${s}"${(editing&&(editing.status||'')===s)||(!editing&&s==='')?' selected':''}>${t('status_'+(s||'done'))}</option>`).join('')}
-    </select>
-    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">${t('jobStatusHint')}</small>
     <label style="margin-top:12px">${t('items')}</label>
     <div id="j-items"></div>
     ${hasProducts?`
@@ -2708,7 +2668,6 @@ function saveInstall(){
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
   const amountClick = Number(document.getElementById('j-click')?.value)||0;
   const amountTerminal = Number(document.getElementById('j-term')?.value)||0;
-  const status = document.getElementById('j-status')?.value || '';
   const note = document.getElementById('j-note').value.trim();
   if(editing){
     // Refund original items, then deduct new — net effect keeps stock consistent.
@@ -2734,14 +2693,12 @@ function saveInstall(){
     editing.amountTransfer = amountTransfer;
     editing.amountClick = amountClick;
     editing.amountTerminal = amountTerminal;
-    editing.status = status;
     editing.note = note;
     // Re-evaluate approval state: any cashless money in the install requires re-approval.
     editing.approved = !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
-                 status, note,
+    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal, note,
                  approved: !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0)};
     state.installs.push(job);
     items.forEach(it=>{
@@ -3475,8 +3432,6 @@ function payMethodLabelRu(usd, som, transfer, click, terminal){
   return parts.join(' + ') || '—';
 }
 const nfRu = n => (Math.round((Number(n)||0)*100)/100).toLocaleString('ru-RU');
-// Report is always Russian, so status labels are taken from the ru locale directly.
-const ruStatus = s => (LOCALES.ru['status_'+s] || s);
 function moneyTextRu(usd, som, transfer, click, terminal){
   const parts = [];
   if((Number(usd)||0)>0) parts.push('$'+nfRu(usd));
@@ -3626,10 +3581,6 @@ function downloadExcelReport(allTime){
       if(a.som>0) m.push(nfRu(a.som)+' сум');
       return nameOf(a.installerId) + ' — ' + (m.join(' + ') || 'не выплачено');
     }).join('\n') || 'установщик не назначен';
-    // If the car hasn't paid yet, the reason goes right under the amount so the boss can
-    // see which cars still owe money and why.
-    const money = moneyTextRu(j.amountUsd,j.amountSom,j.amountTransfer,j.amountClick,j.amountTerminal);
-    const receivedTxt = j.status ? (money==='—' ? '' : money+'\n') + '⚠ ' + ruStatus(j.status) : money;
     // Everything in this section is reported in som — the currency the shop actually works in.
     const revenue = usdToSom(installAmountUsd(j));
     const payment = payouts.reduce((s,a)=>s+usdToSom(a.usd)+a.som, 0);
@@ -3645,7 +3596,7 @@ function downloadExcelReport(allTime){
       const carry = parts.length>1 ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
         ? [S(j.carModel||'—',st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
-           S(payoutTxt,st.payout), S(receivedTxt,st.cell),
+           S(payoutTxt,st.payout), S(moneyTextRu(j.amountUsd,j.amountSom,j.amountTransfer,j.amountClick,j.amountTerminal),st.cell),
            S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
