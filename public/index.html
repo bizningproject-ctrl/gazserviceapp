@@ -285,6 +285,8 @@ const LOCALES = {
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
     carModelRequired:'Write the car model name',
+    exportPeriod:'Excel will cover this period', excelByPeriod:'Excel for a period',
+    nothingInPeriod:'No records in the selected dates — pick another period.',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -406,6 +408,8 @@ const LOCALES = {
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
     carModelRequired:'Впишите название модели авто',
+    exportPeriod:'Excel будет за этот период', excelByPeriod:'Excel за период',
+    nothingInPeriod:'За выбранные даты записей нет — выберите другой период.',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -527,6 +531,8 @@ const LOCALES = {
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     carModelOther:'Avto modeli nomi', carModelOtherHint:'masalan: Gentra, Hyundai Accent…',
     carModelRequired:'Avto modeli nomini yozing',
+    exportPeriod:'Excel shu davr uchun bo\'ladi', excelByPeriod:'Davr uchun Excel',
+    nothingInPeriod:"Tanlangan sanalarda yozuv yo'q — boshqa davrni tanlang.",
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -2462,10 +2468,12 @@ function openInstall(id){
   const hasProducts = state.products.length>0;
   // A car that isn't in the list is kept as free text; the select shows "Other" and the
   // typed name is what actually gets saved, so the report never just says "Other".
-  const known = editing && CAR_MODELS.includes(editing.carModel);
-  const customCar = editing && editing.carModel && !known ? editing.carModel : '';
+  // Older records saved literally as "Other" also land here, so the name can be filled in.
+  const saved = editing ? (editing.carModel||'') : '';
+  const customCar = saved && !CAR_MODELS.includes(saved) ? saved : '';
+  const showOther = !!customCar || saved === 'Other';
   const carOpts = CAR_MODELS.map(m=>{
-    const sel = (known && editing.carModel===m) || (customCar && m==='Other');
+    const sel = showOther ? m==='Other' : saved===m;
     return `<option value="${m}"${sel?' selected':''}>${m}</option>`;
   }).join('');
   modal(`
@@ -2474,7 +2482,7 @@ function openInstall(id){
       <div class="col"><label>${t('date')}</label><input id="j-date" type="date" value="${editing?editing.date:today()}"></div>
       <div class="col"><label>${t('carModel')}</label><select id="j-car" onchange="toggleCustomCar()">${carOpts}</select></div>
     </div>
-    <div id="j-car-other-wrap" style="margin-top:8px;${customCar?'':'display:none'}">
+    <div id="j-car-other-wrap" style="margin-top:8px;${showOther?'':'display:none'}">
       <label>${t('carModelOther')}</label>
       <input id="j-car-other" type="text" placeholder="${t('carModelOtherHint')}" value="${escapeHtml(customCar)}">
     </div>
@@ -2839,7 +2847,8 @@ function viewDashboard(){
     : '';
   V().innerHTML = `
     ${pendingBanner}
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px">
+      <button onclick="goto('archive')">📅 ${t('excelByPeriod')}</button>
       <button class="primary" onclick="downloadExcelReport(true)">📊 ${t('downloadExcel')} — ${t('allTime')}</button>
     </div>
     <div class="row">
@@ -2956,12 +2965,20 @@ function viewDashboard(){
 /* =================== SETTINGS =================== */
 /* =================== ARCHIVE / REPORT =================== */
 let archiveRange = {from:'', to:''};
+let archiveTouched = false;      // true once the user picks a period themselves
 function setArchivePreset(preset){
+  archiveTouched = true;
   const now = new Date();
-  const today = now.toISOString().slice(0,10);
-  if(preset==='7'){ const d=new Date(now); d.setDate(d.getDate()-7); archiveRange={from:d.toISOString().slice(0,10), to:today};}
-  else if(preset==='30'){ const d=new Date(now); d.setDate(d.getDate()-30); archiveRange={from:d.toISOString().slice(0,10), to:today};}
-  else if(preset==='month'){ const d=new Date(now.getFullYear(), now.getMonth(), 1); archiveRange={from:d.toISOString().slice(0,10), to:today};}
+  // Local calendar date. toISOString() would convert to UTC and, at UTC+5, turn
+  // "1 August local" into "31 July" — pulling the previous month into the range.
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const today = ymd(now);
+  if(preset==='today'){ archiveRange={from:today, to:today};}
+  else if(preset==='yesterdayOnly'){ const d=new Date(now); d.setDate(d.getDate()-1);
+    const y=ymd(d); archiveRange={from:y, to:y};}
+  else if(preset==='7'){ const d=new Date(now); d.setDate(d.getDate()-6); archiveRange={from:ymd(d), to:today};}
+  else if(preset==='30'){ const d=new Date(now); d.setDate(d.getDate()-29); archiveRange={from:ymd(d), to:today};}
+  else if(preset==='month'){ const d=new Date(now.getFullYear(), now.getMonth(), 1); archiveRange={from:ymd(d), to:today};}
   else if(preset==='all'){ archiveRange={from:'', to:''};}
   viewArchive();
 }
@@ -3012,13 +3029,17 @@ function archiveData(range){
   return {sales, installs, expenses, purchases, totalRev, totalRevUsd, totalRevSom, cogs, opExp, opExpUsd, opExpSom, profit, installerPayTotal, purchaseTotal, productsSold};
 }
 function viewArchive(){
-  if(!archiveRange.from && !archiveRange.to){
+  // An empty range legitimately means "all time" once the user has chosen it, so only
+  // default to 30 days on the very first visit — otherwise "Всё время" snapped back.
+  if(!archiveRange.from && !archiveRange.to && !archiveTouched){
     setArchivePreset('30'); return;
   }
   V().innerHTML = `
     <div class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
         <b>${t('period')}:</b>
+        <button onclick="setArchivePreset('today')">${t('todayRange')}</button>
+        <button onclick="setArchivePreset('yesterdayOnly')">${t('yesterday')}</button>
         <button onclick="setArchivePreset('7')">${t('last7')}</button>
         <button onclick="setArchivePreset('30')">${t('last30')}</button>
         <button onclick="setArchivePreset('month')">${t('thisMonthRange')}</button>
@@ -3027,18 +3048,48 @@ function viewArchive(){
       <div class="row">
         <div class="col"><label>${t('from')}</label><input type="date" id="arc-from" value="${archiveRange.from}" onchange="readArchiveInputs()"></div>
         <div class="col"><label>${t('to')}</label><input type="date" id="arc-to" value="${archiveRange.to}" onchange="readArchiveInputs()"></div>
-        <div class="col" style="display:flex;align-items:flex-end;gap:6px">
-          <button class="primary" onclick="downloadExcelReport()">📊 ${t('downloadExcel')}</button>
-          <button class="primary" onclick="downloadArchiveHtml()">${t('downloadHtml')}</button>
-          <button onclick="window.print()">${t('printReport')}</button>
-        </div>
       </div>
+      <!-- The download button spells out the exact period it will export, so it is never
+           confused with the all-time button on the dashboard. -->
+      <div id="arc-export" style="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)"></div>
     </div>
     <div id="arc-body"></div>`;
   renderArchiveBody();
 }
+/* Shows exactly which period the download covers and how much data is in it, so the
+   user can see the range took effect before clicking. */
+function renderArchiveExport(d){
+  const box = document.getElementById('arc-export'); if(!box) return;
+  const all = !archiveRange.from && !archiveRange.to;
+  const human = s => s ? s.split('-').reverse().join('.') : '';
+  const period = all ? t('allTime')
+    : (archiveRange.from === archiveRange.to
+        ? human(archiveRange.from)
+        : (human(archiveRange.from)||'…') + ' — ' + (human(archiveRange.to)||'…'));
+  const empty = !d.installs.length && !d.sales.length && !d.expenses.length && !d.purchases.length;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:12px;color:var(--muted)">${t('exportPeriod')}</div>
+        <div style="font-weight:800;font-size:15px">${escapeHtml(period)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">
+          ${t('installs')}: <b>${d.installs.length}</b> ·
+          ${t('salesCount')}: <b>${d.sales.length}</b> ·
+          ${t('expenses')}: <b>${d.expenses.length}</b>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="primary" onclick="downloadExcelReport()" ${empty?'disabled style="opacity:.45;cursor:not-allowed"':''}>
+          📊 ${t('downloadExcel')}</button>
+        <button onclick="downloadArchiveHtml()">${t('downloadHtml')}</button>
+        <button onclick="window.print()">${t('printReport')}</button>
+      </div>
+    </div>
+    ${empty?`<div style="margin-top:8px;font-size:12px;color:var(--neg)">${t('nothingInPeriod')}</div>`:''}`;
+}
 function renderArchiveBody(){
   const d = archiveData();
+  renderArchiveExport(d);
   const box = document.getElementById('arc-body'); if(!box) return;
   const salesRows = [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>`<tr>
     <td>${new Date(s.date).toLocaleString()}</td>
