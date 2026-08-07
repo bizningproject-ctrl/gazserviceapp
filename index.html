@@ -291,6 +291,9 @@ const LOCALES = {
     workerRole:'Worker type', roleCar:'Car installer', roleButka:'Butka',
     roleHint:'Butka workers are paid without attaching a car.',
     butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
+    withoutCar:'Without a car',
+    reason_notPaidYet:"Mashina hali to'lov qilmadi",
+    reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -418,6 +421,9 @@ const LOCALES = {
     workerRole:'Тип работника', roleCar:'Установщик авто', roleButka:'Будка',
     roleHint:'Работникам будки оплата записывается без привязки к авто.',
     butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
+    withoutCar:'Без авто',
+    reason_notPaidYet:"Mashina hali to'lov qilmadi",
+    reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -545,6 +551,9 @@ const LOCALES = {
     workerRole:'Ishchi turi', roleCar:'Avto ustasi', roleButka:'Butka',
     roleHint:"Butka ishchilariga to'lov avtoga bog'lanmasdan yoziladi.",
     butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
+    withoutCar:'Avtosiz',
+    reason_notPaidYet:"Mashina hali to'lov qilmadi",
+    reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -2003,7 +2012,7 @@ function renderExpensesList(){
       <td><span class="chip exp-${e.type}">${t('expense_'+e.type)}</span></td>
       <td>${(e.amountUsd||0)>0 ? `<b>${fmtUsd(e.amountUsd||0)}</b>` : muted}</td>
       <td>${(e.amountSom||0)>0 ? `<b>${fmtSom(e.amountSom||0)}</b>` : muted}</td>
-      <td>${escapeHtml(e.note||'')}</td>
+      <td>${isPayReason(e.installId)?`<span class="chip warn">${t('reason_'+e.installId)}</span> `:''}${escapeHtml(e.note||'')}</td>
       <td style="text-align:right;white-space:nowrap">${editBtn}<button class="danger" onclick="delExpense('${e.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
@@ -2081,9 +2090,16 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
       const summary = (j.items||[]).slice(0,2).map(i=>i.name).join(', ');
       return `<option value="${j.id}"${sel}>${escapeHtml(j.date)} — ${escapeHtml(car)}${summary?' · '+escapeHtml(summary):''}</option>`;
     }).join('');
+    // The installer sometimes has to be paid before any car is finished — pick the reason
+    // instead of a car.
+    const reasonOpts = PAY_REASONS.map(r=>
+      `<option value="${r}"${preselectInstallId===r?' selected':''}>${t('reason_'+r)}</option>`).join('');
     installBlock = `
       <label style="margin-top:10px">${t('forInstall')} <span style="color:var(--neg)">*</span></label>
-      <select id="e-install" required>${installOpts}</select>`;
+      <select id="e-install" required>
+        ${installOpts}
+        <optgroup label="${t('withoutCar')}">${reasonOpts}</optgroup>
+      </select>`;
   } else {
     installBlock = `<div style="margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:6px;color:var(--muted);font-size:12px">${t('noInstallsToPay')}</div>`;
   }
@@ -2171,7 +2187,8 @@ function installerHistory(installerId){
   (state.expenses||[]).forEach(e => {
     if(e.type==='installation_pay' && e.installerId===installerId && ((e.amountUsd||0)>0 || (e.amountSom||0)>0)){
       const j = e.installId ? state.installs.find(x=>x.id===e.installId) : null;
-      events.push({date:e.date, install:j, paidUsd:e.amountUsd||0, paidSom:e.amountSom||0, note:e.note||''});
+      const reason = isPayReason(e.installId) ? t('reason_'+e.installId) : '';
+      events.push({date:e.date, install:j, reason, paidUsd:e.amountUsd||0, paidSom:e.amountSom||0, note:e.note||''});
     }
   });
   events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -2201,9 +2218,13 @@ function openInstallerHistory(id){
     const j = ev.install;
     const items = j ? (j.items||[]).map(it=>`${escapeHtml(it.name)} ×${it.qty}`).join(', ') : '';
     const car = j?.carModel || '';
+    const carCell = car
+      ? `<b>${escapeHtml(car)}</b>`
+      : (ev.reason ? `<span class="chip warn">${escapeHtml(ev.reason)}</span>`
+                   : '<span style="color:var(--muted)">—</span>');
     return `<tr>
       <td>${ev.date}</td>
-      <td>${car?`<b>${escapeHtml(car)}</b>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td>${carCell}</td>
       <td style="font-size:12px">${items||'<span style="color:var(--muted)">—</span>'}</td>
       <td>${fmtDualPay(ev.paidSom, ev.paidUsd)}</td>
       <td style="font-size:12px;color:var(--muted)">${escapeHtml(ev.note||'')}</td>
@@ -2242,7 +2263,9 @@ function lastPaymentsFor(installerId, limit){
   (state.expenses||[]).forEach(e=>{
     if(e.type==='installation_pay' && e.installerId===installerId && ((e.amountUsd||0)>0 || (e.amountSom||0)>0)){
       const j = e.installId ? state.installs.find(x=>x.id===e.installId) : null;
-      events.push({date:e.date, carModel:j?.carModel||'', paidUsd:e.amountUsd||0, paidSom:e.amountSom||0});
+      // Paid without a car — show the reason where the car model would go.
+      const label = j?.carModel || (isPayReason(e.installId) ? t('reason_'+e.installId) : '');
+      events.push({date:e.date, carModel:label, paidUsd:e.amountUsd||0, paidSom:e.amountSom||0});
     }
   });
   events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -2358,6 +2381,11 @@ const isButkaWorker = id => (state.installers.find(x=>x.id===id)||{}).job === 'b
 // Workers who can be put on a car install (everyone except butka fitters).
 const carInstallers = () => state.installers.filter(i => i.job !== 'butka');
 function delInstaller(id){ if(!confirm(t('confirmDelete'))) return; state.installers = state.installers.filter(x=>x.id!==id); save(); viewInstallers();}
+
+/* Reasons an installer is paid without a finished car attached. Stored in the expense's
+   installId field, so they can never collide with a real install id. */
+const PAY_REASONS = ['notPaidYet', 'needFurgon'];
+const isPayReason = v => PAY_REASONS.includes(v);
 
 /* =================== INSTALL JOBS =================== */
 let installsRange = {from:'', to:''};
@@ -3685,13 +3713,17 @@ function downloadExcelReport(allTime){
     if(e.type === 'installation_pay' && e.installId === j.id) groupedPayExpenseIds.add(e.id);
   }));
   // "Категория" carries the note the user typed, so the reason for the money is on the row.
-  const expLines = payLines.concat(d.expenses.filter(e=>!groupedPayExpenseIds.has(e.id)).map(e=>({
-    date: (e.date||'').slice(0,10),
-    article: e.type==='installation_pay' && e.installerId ? nameOf(e.installerId) : ruExpType(e.type),
-    category: e.note || '—',
-    form: moneyTextRu(e.amountUsd, e.amountSom, 0),
-    total: usdToSom(e.amountUsd||0) + (e.amountSom||0),
-  }))).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  // A payout made without a car carries the reason it was paid instead.
+  const expLines = payLines.concat(d.expenses.filter(e=>!groupedPayExpenseIds.has(e.id)).map(e=>{
+    const reason = isPayReason(e.installId) ? LOCALES.ru['reason_'+e.installId] : '';
+    return {
+      date: (e.date||'').slice(0,10),
+      article: e.type==='installation_pay' && e.installerId ? nameOf(e.installerId) : ruExpType(e.type),
+      category: [reason, e.note].filter(Boolean).join(' · ') || '—',
+      form: moneyTextRu(e.amountUsd, e.amountSom, 0),
+      total: usdToSom(e.amountUsd||0) + (e.amountSom||0),
+    };
+  })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
   gap();
   mergeRow(put([S('3. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
