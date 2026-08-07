@@ -287,6 +287,7 @@ const LOCALES = {
     carModelRequired:'Write the car model name',
     exportPeriod:'Excel will cover this period', excelByPeriod:'Excel for a period',
     nothingInPeriod:'No records in the selected dates — pick another period.',
+    editViaPurchase:'Created from a purchase — opens the purchase to edit',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -410,6 +411,7 @@ const LOCALES = {
     carModelRequired:'Впишите название модели авто',
     exportPeriod:'Excel будет за этот период', excelByPeriod:'Excel за период',
     nothingInPeriod:'За выбранные даты записей нет — выберите другой период.',
+    editViaPurchase:'Создан из закупки — откроется закупка для редактирования',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -533,6 +535,7 @@ const LOCALES = {
     carModelRequired:'Avto modeli nomini yozing',
     exportPeriod:'Excel shu davr uchun bo\'ladi', excelByPeriod:'Davr uchun Excel',
     nothingInPeriod:"Tanlangan sanalarda yozuv yo'q — boshqa davrni tanlang.",
+    editViaPurchase:'Xariddan yaratilgan — tahrirlash uchun xarid ochiladi',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -1979,8 +1982,12 @@ function renderExpensesList(){
   const sumSom = list.reduce((s,e)=>s+(e.amountSom||0),0);
   const muted = `<span style="color:var(--muted)">—</span>`;
   const rows = list.map(e=>{
-    const editBtn = e.type === 'purchase'
-      ? ''
+    // A 'purchase' expense that was generated from a purchase record must be edited on the
+    // Purchases page, or the two would drift apart. One typed in by hand has no link and
+    // is editable here like any other expense.
+    const linked = e.purchaseId && state.purchases.some(p=>p.id===e.purchaseId);
+    const editBtn = linked
+      ? `<button onclick="openPurchase('${e.purchaseId}')" title="${t('editViaPurchase')}">${t('edit')} ↗</button>`
       : `<button onclick="openExpense('${e.id}')">${t('edit')}</button>`;
     return `<tr>
       <td>${e.date}</td>
