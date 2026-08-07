@@ -292,6 +292,7 @@ const LOCALES = {
     roleHint:'Butka workers are paid without attaching a car.',
     butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
     withoutCar:'Without a car',
+    searchProductHint:'Search by name, code or supplier…', nothingFound:'Nothing found',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
@@ -422,6 +423,7 @@ const LOCALES = {
     roleHint:'Работникам будки оплата записывается без привязки к авто.',
     butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
     withoutCar:'Без авто',
+    searchProductHint:'Поиск по названию, коду или поставщику…', nothingFound:'Ничего не найдено',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
@@ -552,6 +554,7 @@ const LOCALES = {
     roleHint:"Butka ishchilariga to'lov avtoga bog'lanmasdan yoziladi.",
     butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
     withoutCar:'Avtosiz',
+    searchProductHint:'Nomi, kodi yoki yetkazuvchi bo\'yicha qidirish…', nothingFound:'Hech narsa topilmadi',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
@@ -1390,9 +1393,25 @@ function finalizeSale(){
 function defectiveQtyOf(productId){
   return (state.defectives||[]).filter(d=>d.productId===productId).reduce((s,d)=>s+(d.qty||0),0);
 }
-function viewProducts(){
+let productSearch = '';
+function readProductSearch(){
+  productSearch = document.getElementById('p-search')?.value || '';
+  renderProductRows();
+}
+function clearProductSearch(){ productSearch = ''; viewProducts(); }
+// Matches name, code and supplier, so "europe" finds everything from that supplier.
+function productMatches(p, q){
+  if(!q) return true;
+  const sup = state.suppliers.find(s=>s.id===p.supplierId);
+  return `${p.name} ${p.sku||''} ${sup?sup.name:''}`.toLowerCase().includes(q.toLowerCase());
+}
+/* Only the tbody is redrawn while typing, so the search box keeps focus. */
+function renderProductRows(){
+  const body = document.getElementById('p-rows'); if(!body) return;
   const boss = isBoss();
-  const rows = state.products.map(p=>{
+  const cols = boss ? 6 : 5;
+  const list = state.products.filter(p=>productMatches(p, productSearch));
+  const rows = list.map(p=>{
     const sup = state.suppliers.find(s=>s.id===p.supplierId);
     const low = p.stock<=(p.minStock||0);
     const defQty = defectiveQtyOf(p.id);
@@ -1410,20 +1429,34 @@ function viewProducts(){
       </td>
     </tr>`;
   }).join('');
+  const emptyMsg = productSearch ? t('nothingFound') : t('noData');
+  body.innerHTML = rows || `<tr><td colspan="${cols}" style="text-align:center;color:var(--muted);padding:20px">${emptyMsg}</td></tr>`;
+  const count = document.getElementById('p-count');
+  if(count) count.textContent = productSearch ? `${list.length} / ${state.products.length}` : String(state.products.length);
+}
+function viewProducts(){
+  const boss = isBoss();
   const headerInfo = boss
-    ? `${t('products')}: <b>${state.products.length}</b> · ${t('inventoryValue')}: <b>${fmtUsd(inventoryValue())}</b>`
-    : `${t('products')}: <b>${state.products.length}</b>`;
-  const cols = boss ? 6 : 5;
+    ? `${t('products')}: <b id="p-count">${state.products.length}</b> · ${t('inventoryValue')}: <b>${fmtUsd(inventoryValue())}</b>`
+    : `${t('products')}: <b id="p-count">${state.products.length}</b>`;
   V().innerHTML = `
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div>${headerInfo}</div>
       <button class="primary" onclick="openAddProduct()">${t('newProduct')}</button>
+    </div>
+    <div class="card" style="display:flex;gap:8px;align-items:center">
+      <input id="p-search" type="search" placeholder="${t('searchProductHint')}" value="${escapeAttr(productSearch)}"
+             oninput="readProductSearch()" style="flex:1" autocomplete="off">
+      ${productSearch?`<button onclick="clearProductSearch()">${t('clear')}</button>`:''}
     </div>
     <div class="card" style="padding:0">
     <table>
       <thead><tr><th>${t('name')}</th>${boss?`<th>${t('costCol')}</th>`:''}<th>${t('price')}</th><th>${t('stockCol')}</th><th>${t('supplier')}</th><th></th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="${cols}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+      <tbody id="p-rows"></tbody>
     </table></div>`;
+  renderProductRows();
+  const inp = document.getElementById('p-search');
+  if(productSearch && inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
 }
 function inventoryValue(){ return state.products.reduce((s,p)=>s+p.priceUsd*p.stock,0);}
 function openAddProduct(id){
