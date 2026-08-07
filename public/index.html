@@ -283,6 +283,8 @@ const LOCALES = {
     unpaid:'Unpaid',
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
+    carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
+    carModelRequired:'Write the car model name',
     notifNewApproval:'New transfer awaiting approval',
     notifBody:'{N} new transfer payment(s) need accountant verification.',
     pickInstallForPay:'Pick the install (car) this payment is for.',
@@ -402,6 +404,8 @@ const LOCALES = {
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
+    carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
+    carModelRequired:'Впишите название модели авто',
     notifNewApproval:'Новое перечисление на проверку',
     notifBody:'Новых перечислений на проверку: {N}',
     pickInstallForPay:'Укажите, за какую установку (авто) выплата.',
@@ -521,6 +525,8 @@ const LOCALES = {
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
+    carModelOther:'Avto modeli nomi', carModelOtherHint:'masalan: Gentra, Hyundai Accent…',
+    carModelRequired:'Avto modeli nomini yozing',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
     notifBody:"{N} ta yangi pul o'tkazma buxgalterning tekshiruvini kutmoqda.",
     pickInstallForPay:"Qaysi o'rnatish (avto) uchun ekanligini tanlang.",
@@ -2398,8 +2404,15 @@ function viewInstalls(){
   const inDate = state.installs.filter(j => inInstallsRange(j.date));
   const cnt = m => inDate.filter(j => j.carModel === m).length;
   const chip = (m) => `<button onclick="setInstallsCarFilter('${m}')" class="${installsCarFilter===m?'primary':''}" style="padding:4px 10px">${m}${cnt(m)?` <span style="opacity:.7">(${cnt(m)})</span>`:''}</button>`;
+  // Custom car names typed via "Other" must be filterable too, so pull whatever models
+  // actually exist in the data and append the ones not already in the standard list.
+  const usedModels = [...new Set(state.installs.map(j=>j.carModel).filter(Boolean))]
+    .filter(m => !CAR_MODELS.includes(m)).sort();
   const carOpts = ['<option value="">'+t('anyCar')+'</option>']
-    .concat(CAR_MODELS.map(m => `<option value="${m}"${installsCarFilter===m?' selected':''}>${m}</option>`)).join('');
+    .concat(CAR_MODELS.filter(m=>m!=='Other')
+      .concat(usedModels)
+      .map(m => `<option value="${escapeHtml(m)}"${installsCarFilter===m?' selected':''}>${escapeHtml(m)}</option>`))
+    .join('');
   V().innerHTML = `
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>${t('totalJobs')}: <b>${filtered.length}</b></div>
@@ -2447,12 +2460,23 @@ function openInstall(id){
   editingInstallId = editing ? editing.id : null;
   installDraft = editing ? (editing.items||[]).map(it => ({productId:it.productId, qty:it.qty})) : [];
   const hasProducts = state.products.length>0;
-  const carOpts = CAR_MODELS.map(m=>`<option value="${m}"${editing && editing.carModel===m?' selected':''}>${m}</option>`).join('');
+  // A car that isn't in the list is kept as free text; the select shows "Other" and the
+  // typed name is what actually gets saved, so the report never just says "Other".
+  const known = editing && CAR_MODELS.includes(editing.carModel);
+  const customCar = editing && editing.carModel && !known ? editing.carModel : '';
+  const carOpts = CAR_MODELS.map(m=>{
+    const sel = (known && editing.carModel===m) || (customCar && m==='Other');
+    return `<option value="${m}"${sel?' selected':''}>${m}</option>`;
+  }).join('');
   modal(`
     <h3>${editing ? t('editJob') : t('logJob')}</h3>
     <div class="row">
       <div class="col"><label>${t('date')}</label><input id="j-date" type="date" value="${editing?editing.date:today()}"></div>
-      <div class="col"><label>${t('carModel')}</label><select id="j-car">${carOpts}</select></div>
+      <div class="col"><label>${t('carModel')}</label><select id="j-car" onchange="toggleCustomCar()">${carOpts}</select></div>
+    </div>
+    <div id="j-car-other-wrap" style="margin-top:8px;${customCar?'':'display:none'}">
+      <label>${t('carModelOther')}</label>
+      <input id="j-car-other" type="text" placeholder="${t('carModelOtherHint')}" value="${escapeHtml(customCar)}">
     </div>
     <label style="margin-top:12px">${t('items')}</label>
     <div id="j-items"></div>
@@ -2565,6 +2589,16 @@ function changeInstallQty(idx, d){
   renderInstallLines(); renderInstallPicker();
 }
 function removeInstallLine(idx){ installDraft.splice(idx,1); renderInstallLines(); renderInstallPicker();}
+// Show the free-text car field only when "Other" is picked, and focus it straight away.
+function toggleCustomCar(){
+  const sel = document.getElementById('j-car');
+  const wrap = document.getElementById('j-car-other-wrap');
+  const inp = document.getElementById('j-car-other');
+  if(!sel || !wrap) return;
+  const other = sel.value === 'Other';
+  wrap.style.display = other ? '' : 'none';
+  if(other && inp) inp.focus(); else if(inp) inp.value = '';
+}
 function saveInstall(){
   const editing = editingInstallId ? state.installs.find(j=>j.id===editingInstallId) : null;
   const items = installDraft.filter(l=>l.productId && l.qty>0).map(l=>{
@@ -2578,7 +2612,12 @@ function saveInstall(){
     if(it.qty > budget){ alert(`${t('notEnoughStock')}: ${p.name} (${budget})`); return;}
   }
   const date = document.getElementById('j-date').value || today();
-  const carModel = document.getElementById('j-car')?.value || '';
+  let carModel = document.getElementById('j-car')?.value || '';
+  if(carModel === 'Other'){
+    const typed = (document.getElementById('j-car-other')?.value || '').trim();
+    if(!typed){ alert(t('carModelRequired')); return; }
+    carModel = typed;                       // save the real name, not the word "Other"
+  }
   const amountUsd = Number(document.getElementById('j-usd').value)||0;
   const amountSom = Number(document.getElementById('j-som').value)||0;
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
