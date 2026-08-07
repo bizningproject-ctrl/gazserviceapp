@@ -3602,7 +3602,7 @@ function downloadExcelReport(allTime){
   const rKpiLabel = put(pad([
     S('1. ВЫРУЧКА (сум)', XLS.kpiLabel),      S('', XLS.kpiFillGrey),
     S('2. РАСХОДЫ (сум)', XLS.kpiLabel),
-    S('3. СДАНО БОССУ (сум)', XLS.kpiLabelBlue), S('', XLS.kpiFillBlue),
+    S('3. СДАНО БОССУ — НАЛИЧНЫЕ (сум)', XLS.kpiLabelBlue), S('', XLS.kpiFillBlue),
     S('4. ПОСТАВЩИКАМ (сум)', XLS.kpiLabel),
     S('5. ЧИСТАЯ ПРИБЫЛЬ (сум)', XLS.kpiLabelAmber)]), 14);
   mergeRow(rKpiLabel,0,1); mergeRow(rKpiLabel,3,4);
@@ -3625,11 +3625,18 @@ function downloadExcelReport(allTime){
   if(gotCashless>0) gotParts.push('Click/терминал ' + nfRu(gotCashless)+' сум');
   const rCap = put(pad([
     S(gotParts.join(' + ') || 'нет поступлений', XLS.capGrey), S('', XLS.kpiFillGrey),
-    S('Удержано из кассы', XLS.capGrey),
-    S('(Выручка − Расходы)', XLS.capBlue), S('', XLS.kpiFillBlue),
+    S('Мастера + прочее', XLS.capGrey),
+    S('Наличные − расходы · Click НЕ входит', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
-    S('(Сдано − Себестоимость)', XLS.capAmber)]), 13);
+    S('(Сдано + Click − Себестоимость)', XLS.capAmber)]), 13);
   mergeRow(rCap,0,1); mergeRow(rCap,3,4);
+  // Click / terminal money goes to the account, not into the boss's cash, so it gets its
+  // own line rather than being folded into "Сдано боссу".
+  const rClick = put(pad([
+    S('CLICK / ТЕРМИНАЛ / ПЕРЕЧИСЛЕНИЕ — на счёт, не наличными:', XLS.totalLabel),
+    S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill),
+    S('', XLS.totalFill), S(gotCashless, XLS.totalRevenue)], XLS.totalFill), 20);
+  mergeRow(rClick, 0, 5);
 
   /* ---------------- 1. installs, one row per fitted part ---------------- */
   gap();
@@ -3869,14 +3876,17 @@ function downloadExcelReport(allTime){
   // even in a viewer that never recalculates.
   const vRevenue  = totSpend + totProfit;                  // = money taken from clients
   const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
-  const vHanded   = vRevenue - vExpenses;                  // сдано боссу
-  const vProfit   = vHanded - totCost;                     // real profit after parts
+  // The boss receives cash only. Installer wages and the other expenses come out of that
+  // cash first, and Click / terminal money never passes through his hands at all.
+  const vHanded   = gotCash + usdToSom(gotUsd) - vExpenses;
+  const vProfit   = vHanded + gotCashless - totCost;       // real profit, counting the account money
   const kpi = rows[rKpi].c;
   kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
   kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
-  kpi[3] = Fx(`${at(rKpi,0)}-${at(rKpi,2)}`, XLS.kpiNavy, vHanded);
+  kpi[3] = S(vHanded, XLS.kpiNavy);
   kpi[5] = costRef ? Fx(costRef, XLS.kpiPurple, totCost) : S(totCost, XLS.kpiPurple);
-  kpi[6] = Fx(`${at(rKpi,3)}-${at(rKpi,5)}`, XLS.kpiAmber, vProfit);
+  // Сдано боссу + деньги на счёте − себестоимость
+  kpi[6] = Fx(`${at(rKpi,3)}+${at(rClick,6)}-${at(rKpi,5)}`, XLS.kpiAmber, vProfit);
 
   const blob = buildXlsxBlob([
     {name:'Финансовый Отчет', rows, widths:[15,22,16,26,30,17,17],
