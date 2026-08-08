@@ -3625,10 +3625,10 @@ function downloadExcelReport(allTime){
   if(gotCashless>0) gotParts.push('Click/терминал ' + nfRu(gotCashless)+' сум');
   const rCap = put(pad([
     S(gotParts.join(' + ') || 'нет поступлений', XLS.capGrey), S('', XLS.kpiFillGrey),
-    S('Мастера + прочее', XLS.capGrey),
+    S('Мастера + закупки + прочее', XLS.capGrey),
     S('Наличные − расходы · Click НЕ входит', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
-    S('(Сдано + Click − Себестоимость)', XLS.capAmber)]), 13);
+    S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
   mergeRow(rCap,0,1); mergeRow(rCap,3,4);
   // Click / terminal money goes to the account, not into the boss's cash, so it gets its
   // own line rather than being folded into "Сдано боссу".
@@ -3806,8 +3806,13 @@ function downloadExcelReport(allTime){
       category: [reason, e.note].filter(Boolean).join(' · ') || '—',
       form: moneyTextRu(e.amountUsd, e.amountSom, 0, e.amountClick, e.amountTerminal),
       total: usdToSom(e.amountUsd||0) + (e.amountSom||0) + expenseCashlessSom(e),
+      // Buying stock is money out of the till, but it is NOT a cost of this period's work —
+      // that cost arrives as себестоимость when the part is actually fitted. Counting both
+      // would subtract the same goods twice and can push profit below zero.
+      isStockPurchase: e.type === 'purchase',
     };
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const stockPurchaseTotal = expLines.filter(e=>e.isStockPurchase).reduce((s,e)=>s+e.total, 0);
 
   gap();
   mergeRow(put([S('3. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
@@ -3879,14 +3884,17 @@ function downloadExcelReport(allTime){
   // The boss receives cash only. Installer wages and the other expenses come out of that
   // cash first, and Click / terminal money never passes through his hands at all.
   const vHanded   = gotCash + usdToSom(gotUsd) - vExpenses;
-  const vProfit   = vHanded + gotCashless - totCost;       // real profit, counting the account money
+  // Profit must not subtract stock purchases AND себестоимость — they are the same goods.
+  // Purchases leave the till (so they reduce "сдано боссу") but the cost of this period's
+  // work is себестоимость alone.
+  const vProfit   = vRevenue - totCost - (vExpenses - stockPurchaseTotal);
   const kpi = rows[rKpi].c;
   kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
   kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
   kpi[3] = S(vHanded, XLS.kpiNavy);
   kpi[5] = costRef ? Fx(costRef, XLS.kpiPurple, totCost) : S(totCost, XLS.kpiPurple);
-  // Сдано боссу + деньги на счёте − себестоимость
-  kpi[6] = Fx(`${at(rKpi,3)}+${at(rClick,6)}-${at(rKpi,5)}`, XLS.kpiAmber, vProfit);
+  // Выручка − себестоимость − расходы без закупок (закупки уже сидят в себестоимости)
+  kpi[6] = S(vProfit, XLS.kpiAmber);
 
   const blob = buildXlsxBlob([
     {name:'Финансовый Отчет', rows, widths:[15,22,16,26,30,17,17],
