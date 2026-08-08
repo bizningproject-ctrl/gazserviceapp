@@ -3611,32 +3611,52 @@ function downloadExcelReport(allTime){
     S(0, XLS.kpiNavy),  S('', XLS.kpiFillBlue), S(0, XLS.kpiPurple), S(0, XLS.kpiAmber)]), 20);
   mergeRow(rKpi,0,1); mergeRow(rKpi,3,4);
 
-  // Client money is reported in the currency it actually arrived in — som stays som, USD stays USD.
-  // Cash and cashless are reported apart — Click / terminal money never reaches the till.
-  const gotCash = d.sales.reduce((s,x)=>s+(x.paidSom||0), 0)
-                + d.installs.reduce((s,j)=>s+(j.amountSom||0), 0);
-  const gotCashless = d.sales.reduce((s,x)=>s+saleCashlessSom(x), 0)
-                    + d.installs.reduce((s,j)=>s+installCashlessSom(j), 0);
-  const gotUsd = d.sales.reduce((s,x)=>s+(x.paidUsd||0), 0)
-               + d.installs.reduce((s,j)=>s+(j.amountUsd||0), 0);
-  const gotParts = [];
-  if(gotCash>0) gotParts.push('наличными ' + nfRu(gotCash)+' сум');
-  if(gotUsd>0) gotParts.push('наличными $'+nfRu(gotUsd));
-  if(gotCashless>0) gotParts.push('Click/терминал ' + nfRu(gotCashless)+' сум');
+  // Every payment method is summed on its own, so the boss can see exactly how much came
+  // in as cash, as Click, on the terminal and by bank transfer.
+  const sumBy = (sKey, jKey) => d.sales.reduce((s,x)=>s+(Number(x[sKey])||0), 0)
+                              + d.installs.reduce((s,j)=>s+(Number(j[jKey])||0), 0);
+  const gotCash     = sumBy('paidSom',      'amountSom');
+  const gotUsd      = sumBy('paidUsd',      'amountUsd');
+  const gotClick    = sumBy('paidClick',    'amountClick');
+  const gotTerminal = sumBy('paidTerminal', 'amountTerminal');
+  const gotTransfer = sumBy('paidTransfer', 'amountTransfer');
+  const gotCashless = gotClick + gotTerminal + gotTransfer;
   const rCap = put(pad([
-    S(gotParts.join(' + ') || 'нет поступлений', XLS.capGrey), S('', XLS.kpiFillGrey),
+    S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
     S('Мастера + закупки + прочее', XLS.capGrey),
     S('Наличные − расходы · Click НЕ входит', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
     S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
   mergeRow(rCap,0,1); mergeRow(rCap,3,4);
-  // Click / terminal money goes to the account, not into the boss's cash, so it gets its
-  // own line rather than being folded into "Сдано боссу".
-  const rClick = put(pad([
-    S('CLICK / ТЕРМИНАЛ / ПЕРЕЧИСЛЕНИЕ — на счёт, не наличными:', XLS.totalLabel),
-    S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill),
-    S('', XLS.totalFill), S(gotCashless, XLS.totalRevenue)], XLS.totalFill), 20);
-  mergeRow(rClick, 0, 5);
+
+  /* ---- how the money actually arrived, one line per payment method ---- */
+  gap();
+  mergeRow(put([S('ПОСТУПИЛО ПО ВИДАМ ОПЛАТЫ', XLS.section)]), 0, COLS-1);
+  put(pad([S('Вид оплаты',XLS.headBlue), S('Куда попадает',XLS.headBlue), S('',XLS.headBlue),
+           S('',XLS.headBlue), S('',XLS.headBlue), S('',XLS.headBlue),
+           S('Сумма (сум)',XLS.headBlue)], XLS.headBlue), 22);
+  const METHODS = [
+    ['Наличные (сум)',            'в кассу → боссу',    gotCash],
+    ['Наличные (USD)',            'в кассу → боссу',    usdToSom(gotUsd)],
+    ['Click',                     'на счёт',            gotClick],
+    ['Терминал',                  'на счёт',            gotTerminal],
+    ['Перечисление',              'на счёт',            gotTransfer],
+  ].filter(m => m[2] > 0);
+  const firstMethodRow = rows.length;
+  METHODS.forEach((m, idx) => {
+    const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
+    put(pad([S(m[0],cs), S(m[1],cs), S('',cs), S('',cs), S('',cs), S('',cs), S(m[2],ms)], cs), 20);
+  });
+  let rMethodTotal = null;
+  if(METHODS.length){
+    rMethodTotal = put(pad([S('ВСЕГО ПОСТУПИЛО:', XLS.totalLabel), S('', XLS.totalFill),
+      S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill), S('', XLS.totalFill),
+      Fx(`SUM(${at(firstMethodRow,6)}:${at(rows.length-1,6)})`, XLS.totalRevenue,
+         METHODS.reduce((s,m)=>s+m[2],0))], XLS.totalFill), 22);
+    mergeRow(rMethodTotal, 0, 5);
+  } else {
+    mergeRow(put(pad([S('поступлений нет', XLS.cell)], XLS.cell), 20), 0, COLS-1);
+  }
 
   /* ---------------- 1. installs, one row per fitted part ---------------- */
   gap();
