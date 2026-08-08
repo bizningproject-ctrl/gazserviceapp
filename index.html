@@ -294,7 +294,8 @@ const LOCALES = {
     withoutCar:'Without a car',
     searchProductHint:'Search by name, code or supplier…', nothingFound:'Nothing found',
     cashSom:'Cash (SOM)', inCash:'in cash',
-    payoutSheet:'Installer wages (Excel)', payoutSheetPeriod:'Wages for a period', rateSaved:'Rate saved',
+    payoutSheet:'Installer wages (Excel)', payoutSheetPeriod:'Wages for a period',
+    pcs:'pcs', kinds:'kinds', rateSaved:'Rate saved',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
@@ -427,7 +428,8 @@ const LOCALES = {
     withoutCar:'Без авто',
     searchProductHint:'Поиск по названию, коду или поставщику…', nothingFound:'Ничего не найдено',
     cashSom:'Наличные (сум)', inCash:'наличными',
-    payoutSheet:'Выплаты мастерам (Excel)', payoutSheetPeriod:'Выплаты за период', rateSaved:'Курс сохранён',
+    payoutSheet:'Выплаты мастерам (Excel)', payoutSheetPeriod:'Выплаты за период',
+    pcs:'шт', kinds:'наимен.', rateSaved:'Курс сохранён',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
@@ -560,7 +562,8 @@ const LOCALES = {
     withoutCar:'Avtosiz',
     searchProductHint:'Nomi, kodi yoki yetkazuvchi bo\'yicha qidirish…', nothingFound:'Hech narsa topilmadi',
     cashSom:'Naqd (som)', inCash:'naqd',
-    payoutSheet:"Ustalarga to'lovlar (Excel)", payoutSheetPeriod:"Davr uchun to'lovlar", rateSaved:'Kurs saqlandi',
+    payoutSheet:"Ustalarga to'lovlar (Excel)", payoutSheetPeriod:"Davr uchun to'lovlar",
+    pcs:'dona', kinds:'nomda', rateSaved:'Kurs saqlandi',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
@@ -1156,7 +1159,7 @@ function viewPOS(){
         <div class="cart">
           <h3>${t('currentSale')}</h3>
           <div id="cart-items"></div>
-          <div class="cart-total"><span>${t('total')}</span><span id="cart-total-line">$0.00</span></div>
+          <div class="cart-total"><span>${t('total')} <span id="cart-count" style="color:var(--accent);font-size:13px"></span></span><span id="cart-total-line">$0.00</span></div>
           <div class="pay-split">
             <div style="color:var(--muted);font-size:12px;margin-bottom:6px">${t('splitPayment')}</div>
             <div class="row">
@@ -1249,6 +1252,15 @@ function renderCart(){
   }
   const listTotal = cartListTotalUsd();
   document.getElementById('cart-total-line').innerHTML = `${fmtUsd(listTotal)}<br><span style="font-size:13px;color:var(--muted);font-weight:400">${fmtSom(usdToSom(listTotal))}</span>`;
+  // How many items are in the cart: pieces, plus the number of distinct products.
+  const cnt = document.getElementById('cart-count');
+  if(cnt){
+    const pieces = cart.reduce((s,it)=>s+(it.qty||0), 0);
+    cnt.innerHTML = pieces
+      ? `${pieces} ${t('pcs')}` + (cart.length !== pieces
+          ? ` <span style="color:var(--muted);font-weight:400">· ${cart.length} ${t('kinds')}</span>` : '')
+      : '';
+  }
   recalcPay();
 }
 function cartTotalUsd(){ return cart.reduce((s,it)=>s + (Number(it.priceUsd)||0)*it.qty, 0);}
@@ -2794,7 +2806,15 @@ function renderInstallLines(){
     </div>`;
   }).join('');
   const total = installDraft.reduce((s,l)=>{const p=state.products.find(x=>x.id===l.productId);return s+(p?p.priceUsd*l.qty:0);},0);
-  box.innerHTML = lines + `<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;font-weight:700"><span>${t('total')}</span><span>${fmtUsd(total)} <span style="color:var(--muted);font-weight:400;font-size:13px">${fmtSom(usdToSom(total))}</span></span></div>`;
+  // How many parts went on the car: total pieces, and how many different products.
+  const pieces = installDraft.reduce((s,l)=>s+(l.qty||0), 0);
+  const kinds = installDraft.length;
+  const countLine = `${pieces} ${t('pcs')}`
+    + (kinds !== pieces ? ` <span style="color:var(--muted);font-weight:400">· ${kinds} ${t('kinds')}</span>` : '');
+  box.innerHTML = lines + `<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;font-weight:700">
+      <span>${t('total')} <span style="color:var(--accent);font-size:13px">${countLine}</span></span>
+      <span>${fmtUsd(total)} <span style="color:var(--muted);font-weight:400;font-size:13px">${fmtSom(usdToSom(total))}</span></span>
+    </div>`;
 }
 function renderInstallPicker(){
   const box = document.getElementById('j-picker'); if(!box) return;
