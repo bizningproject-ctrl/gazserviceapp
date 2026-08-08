@@ -293,7 +293,8 @@ const LOCALES = {
     butkaNoCarNeeded:'Butka worker — no car needs to be selected.',
     withoutCar:'Without a car',
     searchProductHint:'Search by name, code or supplier…', nothingFound:'Nothing found',
-    cashSom:'Cash (SOM)', inCash:'in cash', rateSaved:'Rate saved',
+    cashSom:'Cash (SOM)', inCash:'in cash',
+    payoutSheet:'Installer wages (Excel)', payoutSheetPeriod:'Wages for a period', rateSaved:'Rate saved',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
@@ -425,7 +426,8 @@ const LOCALES = {
     butkaNoCarNeeded:'Работник будки — авто выбирать не нужно.',
     withoutCar:'Без авто',
     searchProductHint:'Поиск по названию, коду или поставщику…', nothingFound:'Ничего не найдено',
-    cashSom:'Наличные (сум)', inCash:'наличными', rateSaved:'Курс сохранён',
+    cashSom:'Наличные (сум)', inCash:'наличными',
+    payoutSheet:'Выплаты мастерам (Excel)', payoutSheetPeriod:'Выплаты за период', rateSaved:'Курс сохранён',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
@@ -557,7 +559,8 @@ const LOCALES = {
     butkaNoCarNeeded:"Butka ishchisi — avto tanlash shart emas.",
     withoutCar:'Avtosiz',
     searchProductHint:'Nomi, kodi yoki yetkazuvchi bo\'yicha qidirish…', nothingFound:'Hech narsa topilmadi',
-    cashSom:'Naqd (som)', inCash:'naqd', rateSaved:'Kurs saqlandi',
+    cashSom:'Naqd (som)', inCash:'naqd',
+    payoutSheet:"Ustalarga to'lovlar (Excel)", payoutSheetPeriod:"Davr uchun to'lovlar", rateSaved:'Kurs saqlandi',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
@@ -2323,6 +2326,114 @@ function lastPaymentsFor(installerId, limit){
   events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   return limit ? events.slice(0, limit) : events;
 }
+/* Every payout to every installer inside a date range, one event per payment.
+   Merges the two places payouts live: inline on the job, and 'installation_pay' expenses. */
+function payoutEventsInRange(range){
+  const inR = dateStr => inRange(dateStr, range);
+  const out = [];
+  state.installs.forEach(j => {
+    if(!inR(j.date)) return;
+    jobInstallers(j).forEach(a => {
+      if((a.paidUsd||0)<=0 && (a.paidSom||0)<=0) return;
+      out.push({installerId:a.installerId, date:(j.date||'').slice(0,10),
+                what:j.carModel||'—', usd:a.paidUsd||0, som:a.paidSom||0});
+    });
+  });
+  (state.expenses||[]).forEach(e => {
+    if(e.type !== 'installation_pay' || !e.installerId) return;
+    if(!inR(e.date)) return;
+    if((e.amountUsd||0)<=0 && (e.amountSom||0)<=0) return;
+    const j = e.installId ? state.installs.find(x=>x.id===e.installId) : null;
+    const what = j?.carModel
+      || (isPayReason(e.installId) ? LOCALES.ru['reason_'+e.installId] : (e.note || '—'));
+    out.push({installerId:e.installerId, date:(e.date||'').slice(0,10),
+              what, usd:e.amountUsd||0, som:e.amountSom||0});
+  });
+  return out.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+}
+
+/* A standalone sheet with nothing but installer wages — what to hand to each man. */
+function downloadInstallerPayoutExcel(allTime){
+  const range = allTime ? {from:'',to:''} : archiveRange;
+  const events = payoutEventsInRange(range);
+  const rangeStr = allTime ? 'Всё время'
+    : ((range.from||'—') + ' — ' + (range.to||'—'));
+  const nameOf = id => { const i = state.installers.find(x=>x.id===id); return i ? i.name : '?'; };
+  const S = (v,s)=>({v,s});
+  const Fx = (f,s,v)=>({f,s,v});
+  const COLS = 5, rows = [], merges = [];
+  const at = (r,c) => xlsxColRef(c)+(r+1);
+  const put = (cells,h) => { rows.push({c:cells,h}); return rows.length-1; };
+  const pad = (cells,style) => { const o=cells.slice(); while(o.length<COLS) o.push(S('',style||0)); return o; };
+  const mergeRow = (r,c1,c2) => { if(c2>c1) merges.push(at(r,c1)+':'+at(r,c2)); };
+  const X = {title:1, subtitle:2, section:16, head:38, cell:39, cellB:41,
+             money:40, moneyB:42, totalLabel:33, totalFill:34, totalBig:43, grand:46};
+
+  mergeRow(put([S('ВЫПЛАТЫ УСТАНОВЩИКАМ — ' + rangeStr, X.title)], 24), 0, COLS-1);
+  mergeRow(put([S('Сколько денег выдать каждому мастеру · сформирован '
+                  + new Date().toLocaleString('ru-RU')
+                  + ' · курс 1$ = ' + nfRu(state.rate||0) + ' сум', X.subtitle)], 15), 0, COLS-1);
+
+  // group by installer, biggest payout first
+  const byWorker = {};
+  events.forEach(ev => {
+    if(!byWorker[ev.installerId]) byWorker[ev.installerId] = [];
+    byWorker[ev.installerId].push(ev);
+  });
+  const totalSom = ev => usdToSom(ev.usd) + ev.som;
+  const workers = Object.keys(byWorker)
+    .map(id => ({id, name:nameOf(id), events:byWorker[id],
+                 total:byWorker[id].reduce((s,ev)=>s+totalSom(ev),0)}))
+    .sort((a,b)=>b.total-a.total);
+
+  let grand = 0;
+  const workerTotalRows = [];
+  workers.forEach(w => {
+    put([]);
+    mergeRow(put([S(w.name.toUpperCase() + '   ·   ' + w.events.length + ' выплат', X.section)]), 0, COLS-1);
+    put(pad([S('Дата',X.head), S('За что / машина',X.head), S('Выдано',X.head),
+             S('',X.head), S('Сумма (сум)',X.head)], X.head), 22);
+    const first = rows.length;
+    w.events.forEach((ev,idx) => {
+      const b = idx%2===1;
+      const parts = [];
+      if(ev.usd>0) parts.push('$'+nfRu(ev.usd));
+      if(ev.som>0) parts.push(nfRu(ev.som)+' сум');
+      put(pad([S(ev.date, b?X.cellB:X.cell), S(ev.what, b?X.cellB:X.cell),
+               S(parts.join(' + '), b?X.cellB:X.cell), S('', b?X.cellB:X.cell),
+               S(totalSom(ev), b?X.moneyB:X.money)], b?X.cellB:X.cell), 20);
+    });
+    grand += w.total;
+    const rT = put(pad([S('ИТОГО ' + w.name.toUpperCase() + ':', X.totalLabel),
+      S('',X.totalFill), S('',X.totalFill), S('',X.totalFill),
+      Fx(`SUM(${at(first,4)}:${at(rows.length-1,4)})`, X.totalBig, w.total)], X.totalFill), 22);
+    mergeRow(rT, 0, 3);
+    workerTotalRows.push(rT);
+  });
+
+  if(!workers.length){
+    put([]);
+    mergeRow(put(pad([S('За этот период выплат установщикам нет', X.cell)], X.cell), 20), 0, COLS-1);
+  } else {
+    put([]);
+    const grandFormula = workerTotalRows.map(r=>at(r,4)).join('+');
+    const rG = put(pad([S('ВСЕГО ВЫДАТЬ МАСТЕРАМ:', X.totalLabel),
+      S('',X.totalFill), S('',X.totalFill), S('',X.totalFill),
+      Fx(grandFormula, X.grand, grand)], X.totalFill), 26);
+    mergeRow(rG, 0, 3);
+  }
+
+  const blob = buildXlsxBlob([
+    {name:'Выплаты мастерам', rows, widths:[14,34,26,4,18],
+     opts:{print:true, merges, orientation:'portrait', fitToHeight:0}},
+  ]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = allTime
+    ? `gazmetprod-vyplaty-masteram_ves-period_${new Date().toISOString().slice(0,10)}.xlsx`
+    : `gazmetprod-vyplaty-masteram_${range.from||'nachalo'}_${range.to||'segodnya'}.xlsx`;
+  a.click();
+}
 function viewInstallers(){
   const boss = isBoss();
   const rows = state.installers.map(i=>{
@@ -2391,9 +2502,13 @@ function viewInstallers(){
     }
   }).join('');
   V().innerHTML = `
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <div>${t('allInstallers')}: <b>${state.installers.length}</b></div>
-      <button class="primary" onclick="openInstaller()">${t('newInstaller')}</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${boss?`<button onclick="downloadInstallerPayoutExcel(true)">📊 ${t('payoutSheet')} — ${t('allTime')}</button>
+                <button onclick="goto('archive')">📅 ${t('payoutSheetPeriod')}</button>`:''}
+        <button class="primary" onclick="openInstaller()">${t('newInstaller')}</button>
+      </div>
     </div>
     <div class="card" style="padding:0">
     <table>
@@ -3205,6 +3320,7 @@ function renderArchiveExport(d){
         ? human(archiveRange.from)
         : (human(archiveRange.from)||'…') + ' — ' + (human(archiveRange.to)||'…'));
   const empty = !d.installs.length && !d.sales.length && !d.expenses.length && !d.purchases.length;
+  const payCount = payoutEventsInRange(archiveRange).length;   // wages inside the chosen dates
   box.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div>
@@ -3219,6 +3335,8 @@ function renderArchiveExport(d){
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="primary" onclick="downloadExcelReport()" ${empty?'disabled style="opacity:.45;cursor:not-allowed"':''}>
           📊 ${t('downloadExcel')}</button>
+        <button onclick="downloadInstallerPayoutExcel()" ${payCount?'':'disabled style="opacity:.45;cursor:not-allowed"'}>
+          👷 ${t('payoutSheet')}${payCount?` (${payCount})`:''}</button>
         <button onclick="downloadArchiveHtml()">${t('downloadHtml')}</button>
         <button onclick="window.print()">${t('printReport')}</button>
       </div>
@@ -3496,11 +3614,11 @@ function buildXlsxBlob(sheets){
     XF(9,4,1,M,C)      /* 12 kpi amber      */}${XF(5,2,1,0,C)     /* 13 caption grey   */}${
     XF(5,3,1,0,C)      /* 14 caption blue   */}${XF(5,4,1,0,C)     /* 15 caption amber  */}${
     XF(10,0,0)         /* 16 section title  */}${XF(11,5,2,0,CW)   /* 17 header navy    */}${
-    XF(13,6,1,0,C)     /* 18 car banded     */}${XF(12,6,1,0,L)    /* 19 part banded    */}${
+    XF(13,6,1,0,CW)    /* 18 car banded     */}${XF(12,6,1,0,L)    /* 19 part banded    */}${
     XF(14,6,1,M,R)     /* 20 cost banded    */}${XF(15,6,1,0,CW)   /* 21 payout banded  */}${
     XF(12,6,1,0,CW)    /* 22 cell banded    */}${XF(13,6,1,M,R)    /* 23 revenue banded */}${
     XF(0,0,4)          /* 24 merge middle   */}${XF(0,0,5)         /* 25 merge last     */}${
-    XF(13,0,1,0,C)     /* 26 car            */}${XF(12,0,1,0,L)    /* 27 part           */}${
+    XF(13,0,1,0,CW)    /* 26 car            */}${XF(12,0,1,0,L)    /* 27 part           */}${
     XF(14,0,1,M,R)     /* 28 cost           */}${XF(15,0,1,0,CW)   /* 29 payout         */}${
     XF(12,0,1,0,CW)    /* 30 cell           */}${XF(16,0,1,M,C)    /* 31 payout usd     */}${
     XF(13,0,1,M,R)     /* 32 revenue        */}${XF(17,7,6,0,R)    /* 33 total label    */}${
@@ -3662,7 +3780,7 @@ function downloadExcelReport(allTime){
   gap();
   mergeRow(put([S('1. Раздельный учёт себестоимости деталей, оплаты установщиков и выручки', XLS.section)]), 0, COLS-1);
   const COST_COL = 2, SPEND_COL = 5, PROFIT_COL = 6;
-  put(pad([S('Модель авто',XLS.headNavy), S('Установленный деталь / компонент',XLS.headNavy),
+  put(pad([S('Модель авто / заметка',XLS.headNavy), S('Установленный деталь / компонент',XLS.headNavy),
            S('Себестоимость детали (сум)',XLS.headNavy), S('Выплаты установщикам (кто / сколько)',XLS.headNavy),
            S('Получено от клиента',XLS.headNavy),
            S('Расходы: детали + мастера (сум)',XLS.headNavy), S('ЧИСТАЯ ПРИБЫЛЬ (сум)',XLS.headNavy)],
@@ -3720,14 +3838,18 @@ function downloadExcelReport(allTime){
     const spend = partsSom + payment;                      // everything this car cost us
     totCost += partsSom; totSpend += spend; totProfit += revenue-spend; totPay += payment;
     const top = rows.length;
+    // The note the user typed on the install goes straight under the car model, so it is
+    // read on the car's own line instead of being lost.
+    const carCell = (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '');
     // The payout cell is merged down the whole job; give the first row extra height when the
     // installer list needs more room than the part rows provide (e.g. 3 installers, 1 part).
-    const shortfall = Math.max(0, payoutTxt.split('\n').length*15 - parts.length*20);
+    const tallest = Math.max(payoutTxt.split('\n').length, carCell.split('\n').length);
+    const shortfall = Math.max(0, tallest*15 - parts.length*20);
     parts.forEach((it, k) => {
       const last = k === parts.length-1;
       const carry = parts.length>1 ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
-        ? [S(j.carModel||'—',st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
+        ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S(payoutTxt,st.payout), S(moneyTextRu(j.amountUsd,j.amountSom,j.amountTransfer,j.amountClick,j.amountTerminal),st.cell),
            S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
