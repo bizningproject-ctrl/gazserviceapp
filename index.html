@@ -33,6 +33,11 @@
   input,select,textarea{font-family:inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:14px;width:100%}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
   input::placeholder{color:var(--muted);opacity:.6}
+  /* No spinner arrows on number fields — they sit right where you tap and change the
+     amount by accident. Typing still works, and so do the arrow keys. */
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+  input[type=number]{-moz-appearance:textfield;appearance:textfield}
   /* Dim a placeholder zero in number inputs so it looks like a hint, not real content.
      The .placeholder-zero class is toggled by a MutationObserver / input event below. */
   input[type="number"].placeholder-zero{color:var(--muted);opacity:.55}
