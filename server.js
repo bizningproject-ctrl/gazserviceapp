@@ -126,12 +126,13 @@ function migrateLegacy(){
 migrateLegacy();
 
 function seedUsers(){
-  // Seed each default user only if missing — keeps idempotent across restarts.
+  // Seed ONLY into an empty users table (first run ever). Per-username re-seeding
+  // was a backdoor: rename the boss account and the next restart quietly re-created
+  // 'boss' with the well-known default password.
+  if(stmt.allUsers.all().length > 0) return;
   const ensure = (uname, pwd, role) => {
-    if(!stmt.userByName.get(uname)){
-      stmt.insertUser.run(uname, bcrypt.hashSync(pwd, 10), role);
-      console.log(`  + seeded ${role}/${uname} with password ${pwd}`);
-    }
+    stmt.insertUser.run(uname, bcrypt.hashSync(pwd, 10), role);
+    console.log(`  + seeded ${role}/${uname} with password ${pwd}`);
   };
   ensure('boss',       'million', 'boss');
   ensure('seller',     'work',    'seller');
