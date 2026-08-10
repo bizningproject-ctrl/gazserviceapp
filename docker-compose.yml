@@ -5,7 +5,11 @@ services:
     container_name: gazmetprod-sklad
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Bound to localhost on purpose: the app is reachable only through nginx or the
+      # Tailscale tunnel on the same machine, never directly from the internet.
+      # Docker's published ports bypass the ufw firewall, so binding to 127.0.0.1 is
+      # the only reliable way to keep 3000 closed to the outside.
+      - "127.0.0.1:3000:3000"
     environment:
       PORT: 3000
       DATA_DIR: /app/data
