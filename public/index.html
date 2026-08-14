@@ -76,6 +76,13 @@
   html[data-theme="light"] .chip.exp-utilities{background:#d6f0ed;color:#0f766e}
   html[data-theme="light"] .chip.exp-salary{background:#d4f0dd;color:#15803d}
   html[data-theme="light"] .chip.exp-other{background:#e1e7ee;color:#4a5b6d}
+  /* Per-day car number. Three identical cars fitted on the same date are told apart by
+     this green badge — the same number is used in the lists, in the payment picker and
+     in the Excel report. */
+  .jobno{display:inline-block;min-width:24px;text-align:center;padding:1px 6px;border-radius:6px;
+    font-size:11px;font-weight:800;letter-spacing:.3px;margin-right:6px;vertical-align:1px;
+    background:rgba(124,227,139,.16);color:#7ce38b;border:1px solid rgba(124,227,139,.38)}
+  html[data-theme="light"] .jobno{background:#d9f5e1;color:#15803d;border-color:#9fdcb4}
   /* Unpaid install row — subtle red tint + red border accent */
   tr.unpaid{background:rgba(220,38,38,0.08);box-shadow:inset 4px 0 0 0 var(--neg)}
   tr.unpaid:hover{background:rgba(220,38,38,0.14)}
@@ -848,6 +855,25 @@ let state = loadLocal();
 const uid = () => Math.random().toString(36).slice(2,10);
 const today = () => new Date().toISOString().slice(0,10);
 const nowISO = () => new Date().toISOString();
+
+/* =================== PER-DAY CAR NUMBER =================== */
+/* Cars fitted on the same date get 1, 2, 3… in the order they were entered. Three
+   identical Onix on one day are otherwise indistinguishable in the lists and in the
+   "За установку" car picker. The number is derived from the array order — never from a
+   view's own sorting — so the same car carries the same number in every list, in the
+   picker and in the Excel report. Build the map once per render and pass it down. */
+function installNoMap(list){
+  const perDay = {}, map = {};
+  (list || state.installs || []).forEach(j => {
+    const day = (j.date||'').slice(0,10);
+    map[j.id] = (perDay[day] = (perDay[day]||0) + 1);
+  });
+  return map;
+}
+const installNoOf = (j, map) => (map || installNoMap())[j.id] || 0;
+// Light-green badge for the HTML lists; plain "№N " prefix for xlsx cells and <option> text.
+const jobNoBadge = n => n ? `<span class="jobno">№${n}</span>` : '';
+const jobNoText  = n => n ? '№' + n + ' · ' : '';
 
 /* =================== CURRENCY =================== */
 const fmtUsd = v => '$' + (Number(v)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -2081,7 +2107,15 @@ function renderExpensesList(){
   const sumSom = list.reduce((s,e)=>s+(e.amountSom||0),0);
   const sumCashless = list.reduce((s,e)=>s+expenseCashlessSom(e),0);
   const muted = `<span style="color:var(--muted)">—</span>`;
+  const expNoMap = installNoMap();
   const rows = list.map(e=>{
+    // A wage paid for a specific car names that car, with its per-day number — otherwise
+    // three identical cars on one day give three identical-looking expense lines.
+    const payFor = e.type === 'installation_pay' && e.installId && !isPayReason(e.installId)
+      ? state.installs.find(x => x.id === e.installId) : null;
+    const payForCell = payFor
+      ? `${jobNoBadge(installNoOf(payFor, expNoMap))}<b>${escapeHtml(payFor.carModel||'—')}</b> `
+      : '';
     // A 'purchase' expense that was generated from a purchase record must be edited on the
     // Purchases page, or the two would drift apart. One typed in by hand has no link and
     // is editable here like any other expense.
@@ -2100,7 +2134,7 @@ function renderExpensesList(){
             .map(([k,v])=>`<b style="color:var(--accent)">${fmtSom(v)}</b> <small style="color:var(--muted)">${t(k)}</small>`)
             .join('<br>')
         : muted}</td>
-      <td>${isPayReason(e.installId)?`<span class="chip warn">${t('reason_'+e.installId)}</span> `:''}${escapeHtml(e.note||'')}</td>
+      <td>${payForCell}${isPayReason(e.installId)?`<span class="chip warn">${t('reason_'+e.installId)}</span> `:''}${escapeHtml(e.note||'')}</td>
       <td style="text-align:right;white-space:nowrap">${editBtn}<button class="danger" onclick="delExpense('${e.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
@@ -2177,11 +2211,22 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
   if(butka){
     installBlock = `<div style="margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:6px;color:var(--muted);font-size:12px">${t('butkaNoCarNeeded')}</div>`;
   } else if(installs.length){
+    // Every car carries its per-day number. When the SAME model was fitted more than once
+    // on the same day — the case that actually gets mixed up — the whole line turns green
+    // and also names the installers, so the right car can be picked with confidence.
+    const noMap = installNoMap();
+    const dupKey = j => (j.date||'').slice(0,10) + '|' + (j.carModel||'');
+    const dupCount = {};
+    installs.forEach(j => { dupCount[dupKey(j)] = (dupCount[dupKey(j)]||0) + 1; });
     const installOpts = installs.map(j=>{
       const sel = preselectInstallId && j.id===preselectInstallId ? ' selected' : '';
       const car = j.carModel || installPayees(j).join(', ') || '?';
       const summary = (j.items||[]).slice(0,2).map(i=>i.name).join(', ');
-      return `<option value="${j.id}"${sel}>${escapeHtml(j.date)} — ${escapeHtml(car)}${summary?' · '+escapeHtml(summary):''}</option>`;
+      const dup = dupCount[dupKey(j)] > 1;
+      const who = dup ? installPayees(j).join(', ') : '';
+      return `<option value="${j.id}"${sel}${dup?' style="color:var(--pos);font-weight:700"':''}>`
+        + `№${installNoOf(j, noMap)} · ${escapeHtml(j.date)} — ${escapeHtml(car)}`
+        + `${summary?' · '+escapeHtml(summary):''}${who?' · 👷 '+escapeHtml(who):''}</option>`;
     }).join('');
     // The installer sometimes has to be paid before any car is finished — pick the reason
     // instead of a car.
@@ -2311,12 +2356,13 @@ function openInstallerHistory(id){
     const totalUsd = v.usd + somToUsd(v.som);
     return `<span class="chip" style="margin:2px 4px 2px 0;padding:4px 8px"><b>${escapeHtml(k)}</b> ×${v.count} <span style="color:var(--muted);margin-left:4px">— ${fmtUsd(totalUsd)}</span></span>`;
   }).join('');
+  const histNoMap = installNoMap();
   const rows = events.map(ev => {
     const j = ev.install;
     const items = j ? (j.items||[]).map(it=>`${escapeHtml(it.name)} ×${it.qty}`).join(', ') : '';
     const car = j?.carModel || '';
     const carCell = car
-      ? `<b>${escapeHtml(car)}</b>`
+      ? `${jobNoBadge(installNoOf(j, histNoMap))}<b>${escapeHtml(car)}</b>`
       : (ev.reason ? `<span class="chip warn">${escapeHtml(ev.reason)}</span>`
                    : '<span style="color:var(--muted)">—</span>');
     return `<tr>
@@ -2348,12 +2394,16 @@ function openInstallerHistory(id){
   `);
 }
 function lastPaymentsFor(installerId, limit){
-  // Collect each pay event with the car it was for (when known)
+  // Collect each pay event with the car it was for (when known). The car's per-day number
+  // rides along in its own field — carModel stays the bare model, because the callers
+  // group by it to build the "Cobalt ×2, Nexia" summary.
   const events = [];
+  const noMap = installNoMap();
   state.installs.forEach(j=>{
     jobInstallers(j).forEach(a=>{
       if(a.installerId===installerId && ((a.paidUsd||0)>0 || (a.paidSom||0)>0)){
-        events.push({date:j.date, carModel:j.carModel||'', paidUsd:a.paidUsd||0, paidSom:a.paidSom||0});
+        events.push({date:j.date, carModel:j.carModel||'', no:installNoOf(j, noMap),
+                     paidUsd:a.paidUsd||0, paidSom:a.paidSom||0});
       }
     });
   });
@@ -2362,7 +2412,8 @@ function lastPaymentsFor(installerId, limit){
       const j = e.installId ? state.installs.find(x=>x.id===e.installId) : null;
       // Paid without a car — show the reason where the car model would go.
       const label = j?.carModel || (isPayReason(e.installId) ? t('reason_'+e.installId) : '');
-      events.push({date:e.date, carModel:label, paidUsd:e.amountUsd||0, paidSom:e.amountSom||0});
+      events.push({date:e.date, carModel:label, no: j ? installNoOf(j, noMap) : 0,
+                   paidUsd:e.amountUsd||0, paidSom:e.amountSom||0});
     }
   });
   events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -2373,12 +2424,13 @@ function lastPaymentsFor(installerId, limit){
 function payoutEventsInRange(range){
   const inR = dateStr => inRange(dateStr, range);
   const out = [];
+  const noMap = installNoMap();
   state.installs.forEach(j => {
     if(!inR(j.date)) return;
     jobInstallers(j).forEach(a => {
       if((a.paidUsd||0)<=0 && (a.paidSom||0)<=0) return;
       out.push({installerId:a.installerId, date:(j.date||'').slice(0,10),
-                what:j.carModel||'—', usd:a.paidUsd||0, som:a.paidSom||0});
+                what:jobNoText(installNoOf(j, noMap))+(j.carModel||'—'), usd:a.paidUsd||0, som:a.paidSom||0});
     });
   });
   (state.expenses||[]).forEach(e => {
@@ -2386,7 +2438,9 @@ function payoutEventsInRange(range){
     if(!inR(e.date)) return;
     if((e.amountUsd||0)<=0 && (e.amountSom||0)<=0) return;
     const j = e.installId ? state.installs.find(x=>x.id===e.installId) : null;
-    const what = j?.carModel
+    // Guard the carModel test, not just j: "№2 · " alone is a truthy string and would
+    // swallow the pay-reason / note fallback for a job saved without a model.
+    const what = (j && j.carModel ? jobNoText(installNoOf(j, noMap)) + j.carModel : '')
       || (isPayReason(e.installId) ? LOCALES.ru['reason_'+e.installId] : (e.note || '—'));
     out.push({installerId:e.installerId, date:(e.date||'').slice(0,10),
               what, usd:e.amountUsd||0, som:e.amountSom||0});
@@ -2499,7 +2553,7 @@ function viewInstallers(){
       // Per-event detail for tooltip
       const tooltip = events.map(ev => {
         const parts = [ev.date];
-        if(ev.carModel) parts.push(ev.carModel);
+        if(ev.carModel) parts.push((ev.no ? '№'+ev.no+' ' : '') + ev.carModel);
         const money = [];
         if(ev.paidUsd>0) money.push('$'+(ev.paidUsd).toFixed(2));
         if(ev.paidSom>0) money.push(Math.round(ev.paidSom).toLocaleString('en-US')+' som');
@@ -2528,7 +2582,7 @@ function viewInstallers(){
         const parts = [];
         if(ev.paidUsd>0) parts.push(fmtUsd(ev.paidUsd));
         if(ev.paidSom>0) parts.push(fmtSom(ev.paidSom));
-        const carPart = ev.carModel ? ` · <b>${escapeHtml(ev.carModel)}</b>` : '';
+        const carPart = ev.carModel ? ` · ${jobNoBadge(ev.no)}<b>${escapeHtml(ev.carModel)}</b>` : '';
         return `<div style="font-size:12px;padding:2px 0"><span style="color:var(--muted)">${ev.date}</span>${carPart} &mdash; <b>${parts.join(' + ')||'—'}</b></div>`;
       }).join('') || `<span style="color:var(--muted)">—</span>`;
       return `<tr>
@@ -2644,6 +2698,7 @@ function viewInstalls(){
       <div class="kpi"><div class="l">${t('paidToInstaller')}</div><div style="margin-top:6px">${fmtTwoCurrencyStack(sumPaidSom, sumPaidUsd, {color:'var(--neg)'})}</div></div>
     </div>` : '';
   let lastDay = null;
+  const noMap = installNoMap();
   const rows = filtered.map(j=>{
     // A banner row whenever the date changes, so each day's cars are visually blocked together.
     const day = (j.date||'').slice(0,10);
@@ -2661,9 +2716,10 @@ function viewInstalls(){
       </td></tr>`;
     }
     const payees = installPayees(j);
+    const no = jobNoBadge(installNoOf(j, noMap));
     const carCell = j.carModel
-      ? `<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
-      : (payees.length ? payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') : '<span style="color:var(--muted)">—</span>');
+      ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+      : (payees.length ? no + payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') : no + '<span style="color:var(--muted)">—</span>');
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     const payout = installPayoutTotals(j);
     const unpaid = (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && installCashlessSom(j) <= 0;
@@ -2985,11 +3041,12 @@ function viewDebts(){
   const list = state.installs.filter(j => (Number(j.debtSom)||0) > 0)
     .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const total = list.reduce((s,j)=>s+(Number(j.debtSom)||0), 0);
+  const noMap = installNoMap();
   const rows = list.map(j=>{
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     return `<tr class="unpaid">
       <td>${j.date||''}</td>
-      <td><b>${escapeHtml(j.carModel||'—')}</b></td>
+      <td>${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b></td>
       <td>${j.debtor?`<b>${escapeHtml(j.debtor)}</b>`:'<span style="color:var(--muted)">—</span>'}</td>
       <td style="max-width:260px;font-size:12px">${itemsStr||''}${j.note?`<div style="color:var(--muted)">${escapeHtml(j.note)}</div>`:''}</td>
       <td><b style="color:var(--neg)">${fmtSom(j.debtSom)}</b></td>
@@ -3017,7 +3074,8 @@ function openRepay(id){
   modal(`
     <h3>${t('repayTitle')}</h3>
     <div style="margin-bottom:10px">
-      <b>${escapeHtml(j.carModel||'—')}</b>${j.debtor?' · '+escapeHtml(j.debtor):''}
+      ${jobNoBadge(installNoOf(j))}<b>${escapeHtml(j.carModel||'—')}</b>${j.debtor?' · '+escapeHtml(j.debtor):''}
+      <div style="color:var(--muted);font-size:12px">${j.date||''}</div>
       <div style="color:var(--neg);font-weight:700;margin-top:4px">${t('remaining')}: ${fmtSom(j.debtSom)}</div>
     </div>
     <label>${t('repayMethod')}</label>
@@ -3158,6 +3216,7 @@ function viewApprovals(){
       <td style="text-align:right"><button class="primary" onclick="approveItem('sale','${s.id}')">${t('approve')}</button></td>
     </tr>`;
   }).join('');
+  const apprNoMap = installNoMap();
   const installRows = installs.map(j => {
     const items = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     // The amounts above are the job's lifetime totals; list the debt repayments separately
@@ -3171,7 +3230,7 @@ function viewApprovals(){
       : '';
     return `<tr>
       <td>${j.date}</td>
-      <td><b>${escapeHtml(j.carModel||'—')}</b></td>
+      <td>${jobNoBadge(installNoOf(j, apprNoMap))}<b>${escapeHtml(j.carModel||'—')}</b></td>
       <td style="font-size:12px">${items||'—'}</td>
       <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer, j.amountClick, j.amountTerminal)}${repayInfo}</td>
       <td style="text-align:right"><button class="primary" onclick="approveItem('install','${j.id}')">${t('approve')}</button></td>
@@ -3268,6 +3327,7 @@ function viewDashboard(){
   const totalUnits = state.products.reduce((s,p)=>s+p.stock,0);
   const recent = [...state.sales].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   const recentJobs = [...state.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
+  const dashNoMap = installNoMap();
   const recentStock = [...(state.stockLogs||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
   const recentDef = [...(state.defectives||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
   const totalDefQty = (state.defectives||[]).reduce((s,d)=>s+(d.qty||0),0);
@@ -3371,9 +3431,10 @@ function viewDashboard(){
         <tbody>
           ${recentJobs.map(j=>{
             const payees = installPayees(j);
+            const no = jobNoBadge(installNoOf(j, dashNoMap));
             const carCell = j.carModel
-              ? `<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
-              : (payees.length ? `<b>${payees.map(escapeHtml).join(', ')}</b>` : '<span style="color:var(--muted)">—</span>');
+              ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+              : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '<span style="color:var(--muted)">—</span>');
             const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
             const payout = installPayoutTotals(j);
             return `<tr>
@@ -3591,11 +3652,13 @@ function renderArchiveBody(){
     <td>${fmtUsd(s.paidUsd)}</td>
     <td>${fmtSom(s.paidSom)}</td>
   </tr>`).join('');
+  const arcNoMap = installNoMap();
   const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{
     const payees = installPayees(j);
+    const no = jobNoBadge(installNoOf(j, arcNoMap));
     const carCell = j.carModel
-      ? `<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:#566678">${payees.map(escapeHtml).join(', ')}</small>`:''}`
-      : (payees.length ? `<b>${payees.map(escapeHtml).join(', ')}</b>` : '—');
+      ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+      : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '—');
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     const payout = installPayoutTotals(j);
     return `<tr>
@@ -3666,7 +3729,10 @@ function downloadArchiveHtml(){
     if(s>0 && u>0) return `<div style="color:#1f7a3a;font-weight:700;font-size:15px">${fmtSom(s)}</div><div style="color:#1f7a3a;font-weight:600;font-size:13px">${fmtUsd(u)}</div>`;
     return `<b>${s>0?fmtSom(s):fmtUsd(u)}</b>`;
   };
-  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td><b>${names||'?'}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${dualCell(installerPaySomTotal(j), installerPayUsdTotal(j))}</td></tr>`;}).join('');
+  // Standalone file: it carries its own CSS, so the per-day number is styled inline here.
+  const htmlNoMap = installNoMap();
+  const noTag = n => n ? `<span style="display:inline-block;padding:1px 5px;border-radius:5px;font-size:11px;font-weight:800;background:#d9f5e1;color:#15803d;border:1px solid #9fdcb4;margin-right:5px">№${n}</span>` : '';
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td>${noTag(installNoOf(j, htmlNoMap))}<b>${escapeHtml(j.carModel||'')}${j.carModel&&names?' · ':''}${names||(j.carModel?'':'?')}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${dualCell(installerPaySomTotal(j), installerPayUsdTotal(j))}</td></tr>`;}).join('');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gazmetprod report ${range}</title><style>${css}</style></head><body>
     <h1>Gazmetprod — ${t('archive')}</h1>
     <div class="muted">${t('period')}: ${range} · ${t('generated')}: ${new Date().toLocaleString()}</div>
@@ -3685,7 +3751,7 @@ function downloadArchiveHtml(){
     <h2>${t('sales')}</h2>
     <table><thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th></tr></thead><tbody>${salesRows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table>
     <h2>${t('installersSection')}</h2>
-    <table><thead><tr><th>${t('date')}</th><th>${t('installerCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th></tr></thead><tbody>${installRows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table>
+    <table><thead><tr><th>${t('date')}</th><th>${t('carModel')} / ${t('installerCol')}</th><th>${t('items')}</th><th>${t('charged')}</th><th>${t('paidToInstaller')}</th></tr></thead><tbody>${installRows||'<tr><td colspan="5" class="muted">—</td></tr>'}</tbody></table>
     </body></html>`;
   const blob = new Blob([html], {type:'text/html'});
   const a = document.createElement('a');
@@ -3920,6 +3986,8 @@ function downloadExcelReport(allTime){
   };
   const S = (v,s)=>({v,s});
   const Fx = (f,s,v)=>({f,s,v});    // v = computed value, cached so blank cells never appear
+  // Same per-day car numbers as the app's lists and the payment picker.
+  const xlsNoMap = installNoMap();
   const COLS = 7, rows = [], merges = [];
   const at = (r,c) => xlsxColRef(c)+(r+1);
   const put = (cells,h) => { rows.push({c:cells,h}); return rows.length-1; };
@@ -4103,7 +4171,7 @@ function downloadExcelReport(allTime){
     const top = rows.length;
     // The note the user typed on the install goes straight under the car model, so it is
     // read on the car's own line instead of being lost.
-    const carCell = (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '')
+    const carCell = jobNoText(installNoOf(j, xlsNoMap)) + (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '')
       + ((Number(j.debtSom)||0) > 0
           ? '\n⚠ Долг: ' + nfRu(j.debtSom) + ' сум' + (j.debtor ? ' — ' + j.debtor : '')
           : '');
@@ -4165,7 +4233,8 @@ function downloadExcelReport(allTime){
     const firstDebtRow = rows.length;
     debtJobs.forEach((j,idx)=>{
       const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
-      put(pad([S((j.date||'').slice(0,10),cs), S(j.carModel||'—',cs), S(j.debtor||'—',cs),
+      put(pad([S((j.date||'').slice(0,10),cs), S(jobNoText(installNoOf(j, xlsNoMap))+(j.carModel||'—'),cs),
+               S(j.debtor||'—',cs),
                S(j.note||'',cs), S('',cs), S('',cs), S(Number(j.debtSom),ms)], cs), 20);
     });
     const rDebtTotal = put(pad([S('ВСЕГО ДОЛГОВ НА СЕГОДНЯ (не входит в выручку):', XLS.totalLabel),
@@ -4185,7 +4254,8 @@ function downloadExcelReport(allTime){
       : m==='click' ? 'Click' : m==='terminal' ? 'Терминал' : 'Перечисление';
     periodRepays.forEach(({j, r}, idx)=>{
       const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
-      put(pad([S((r.date||'').slice(0,10),cs), S(j.carModel||'—',cs), S(j.debtor||'—',cs),
+      put(pad([S((r.date||'').slice(0,10),cs), S(jobNoText(installNoOf(j, xlsNoMap))+(j.carModel||'—'),cs),
+               S(j.debtor||'—',cs),
                S(mName(r.method) + (r.method==='usd' ? ': $'+nfRu(r.amt) : ''),cs),
                S('',cs), S('',cs), S(Math.round(repaySomOf(r)),ms)], cs), 20);
     });
@@ -4236,6 +4306,9 @@ function downloadExcelReport(allTime){
     const p = perInstaller[a.installerId];
     p.som += usdToSom(a.usd) + a.som;
     const car = j.carModel || 'без модели';
+    // Deliberately a count, not the per-day numbers: this line covers the whole period, and
+    // "№1, №1" (two different days) reads like a mistake. The wages sheet lists every car
+    // with its own date and number for exactly that detail.
     p.cars[car] = (p.cars[car]||0) + 1;
     if(j.date) p.dates.push(j.date.slice(0,10));
   }));
