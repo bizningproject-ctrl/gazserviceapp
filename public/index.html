@@ -300,7 +300,15 @@ const LOCALES = {
     searchProductHint:'Search by name, code or supplier…', nothingFound:'Nothing found',
     cashSom:'Cash (SOM)', inCash:'in cash',
     payoutSheet:'Installer wages (Excel)', payoutSheetPeriod:'Wages for a period',
-    pcs:'pcs', kinds:'kinds', rateSaved:'Rate saved',
+    pcs:'pcs', kinds:'kinds',
+    debts:'Debts', debtSom:'Debt (SOM)', debtor:'Who owes (name)', debtChip:'Debt',
+    debtHint:'If the client did not pay everything — write the debt and who owes it.',
+    repay:'Repay', repayTitle:'Debt repayment', repayMethod:'Payment method',
+    repayAmount:'Amount', remaining:'Remaining debt',
+    totalDebt:'Clients owe', debtorsCount:'Debtors', noDebts:'No debts 🎉', rateSaved:'Rate saved',
+    repayOvershoot:'You entered {paid} som — more than the remaining debt ({debt} som). Save anyway?',
+    confirmDeleteDebt:'This install still has an unpaid debt of {sum} som. Delete it together with the debt?',
+    wipeDebtsKept:'Client debts kept: {n}',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'New transfer awaiting approval',
@@ -434,7 +442,15 @@ const LOCALES = {
     searchProductHint:'Поиск по названию, коду или поставщику…', nothingFound:'Ничего не найдено',
     cashSom:'Наличные (сум)', inCash:'наличными',
     payoutSheet:'Выплаты мастерам (Excel)', payoutSheetPeriod:'Выплаты за период',
-    pcs:'шт', kinds:'наимен.', rateSaved:'Курс сохранён',
+    pcs:'шт', kinds:'наимен.',
+    debts:'Долги', debtSom:'Долг (сум)', debtor:'Должник (имя)', debtChip:'Долг',
+    debtHint:'Если клиент заплатил не всё — впишите долг и кто должен.',
+    repay:'Погасить', repayTitle:'Погашение долга', repayMethod:'Форма оплаты',
+    repayAmount:'Сумма', remaining:'Остаток долга',
+    totalDebt:'Клиенты должны', debtorsCount:'Должников', noDebts:'Долгов нет 🎉', rateSaved:'Курс сохранён',
+    repayOvershoot:'Введено {paid} сум — больше остатка долга ({debt} сум). Всё равно записать?',
+    confirmDeleteDebt:'На этой установке непогашенный долг {sum} сум. Удалить вместе с долгом?',
+    wipeDebtsKept:'Долги клиентов сохранены: {n}',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:'Новое перечисление на проверку',
@@ -568,7 +584,15 @@ const LOCALES = {
     searchProductHint:'Nomi, kodi yoki yetkazuvchi bo\'yicha qidirish…', nothingFound:'Hech narsa topilmadi',
     cashSom:'Naqd (som)', inCash:'naqd',
     payoutSheet:"Ustalarga to'lovlar (Excel)", payoutSheetPeriod:"Davr uchun to'lovlar",
-    pcs:'dona', kinds:'nomda', rateSaved:'Kurs saqlandi',
+    pcs:'dona', kinds:'nomda',
+    debts:'Qarzlar', debtSom:'Qarz (som)', debtor:'Qarzdor (ism)', debtChip:'Qarz',
+    debtHint:"Mijoz to'liq to'lamagan bo'lsa — qarzni va kim qarzdorligini yozing.",
+    repay:"To'lash", repayTitle:"Qarzni to'lash", repayMethod:"To'lov turi",
+    repayAmount:'Summa', remaining:'Qolgan qarz',
+    totalDebt:'Mijozlar qarzi', debtorsCount:'Qarzdorlar', noDebts:"Qarzlar yo'q 🎉", rateSaved:'Kurs saqlandi',
+    repayOvershoot:"{paid} so'm kiritildi — qolgan qarzdan ({debt} so'm) ko'p. Baribir yozilsinmi?",
+    confirmDeleteDebt:"Bu o'rnatishda to'lanmagan {sum} so'm qarz bor. Qarz bilan birga o'chirilsinmi?",
+    wipeDebtsKept:'Mijoz qarzlari saqlab qolindi: {n}',
     reason_notPaidYet:"Mashina hali to'lov qilmadi",
     reason_needFurgon:'Furgon qilish kerak',
     notifNewApproval:"Yangi pul o'tkazma tasdiqlash kutmoqda",
@@ -961,6 +985,7 @@ const NAV_ALL = [
   {id:'expenses', key:'expenses', fn:()=>viewExpenses(), roles:['boss','seller']},
   {id:'installers', key:'installers', fn:()=>viewInstallers(), roles:['boss','seller']},
   {id:'installs', key:'installs', fn:()=>viewInstalls(), roles:['boss','seller']},
+  {id:'debts', key:'debts', fn:()=>viewDebts(), roles:['boss','seller']},
   {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
   {id:'users', key:'users', fn:()=>viewUsers(), roles:['boss']},
@@ -2646,9 +2671,13 @@ function viewInstalls(){
       .filter(([,amt]) => (Number(amt)||0) > 0)
       .map(([key,amt]) => `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t(key)}: ${fmtSom(amt)}</div>`)
       .join('');
-    const receivedCell = unpaid
+    // Outstanding debt is flagged right on the money cell, with who owes it.
+    const debtLine = (Number(j.debtSom)||0) > 0
+      ? `<div style="margin-top:3px"><span class="chip bad">${t('debtChip')}: ${fmtSom(j.debtSom)}</span>${j.debtor?` <small style="color:var(--muted)">${escapeHtml(j.debtor)}</small>`:''}</div>`
+      : '';
+    const receivedCell = (unpaid
       ? `<span class="chip bad">${t('unpaid')}</span>`
-      : fmtDualPay(j.amountSom||0, j.amountUsd||0) + transferLine;
+      : fmtDualPay(j.amountSom||0, j.amountUsd||0) + transferLine) + debtLine;
     return dayRow + `<tr${unpaid?' class="unpaid"':''}>
       <td>${j.date}</td>
       <td>${carCell}</td>
@@ -2756,6 +2785,11 @@ function openInstall(id){
       <div class="col"><label>${t('paidClick')} (SOM)</label><input id="j-click" type="number" step="1" value="${editing?(editing.amountClick||0):0}" oninput="updateSomHint('j-click','j-click-hint')"><small id="j-click-hint" style="color:var(--muted);font-size:11px"></small></div>
       <div class="col"><label>${t('paidTerminal')} (SOM)</label><input id="j-term" type="number" step="1" value="${editing?(editing.amountTerminal||0):0}" oninput="updateSomHint('j-term','j-term-hint')"><small id="j-term-hint" style="color:var(--muted);font-size:11px"></small></div>
     </div>
+    <div class="row" style="margin-top:8px">
+      <div class="col"><label style="color:var(--neg)">${t('debtSom')}</label><input id="j-debt" type="number" step="1" min="0" value="${editing?(editing.debtSom||0):0}" oninput="updateSomHint('j-debt','j-debt-hint')"><small id="j-debt-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('debtor')}</label><input id="j-debtor" type="text" placeholder="Temur aka…" value="${editing?escapeAttr(editing.debtor||''):''}"></div>
+    </div>
+    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">${t('debtHint')}</small>
     <label style="margin-top:10px">${t('note')}</label>
     <textarea id="j-note" rows="2">${editing?escapeHtml(editing.note||''):''}</textarea>
     <div class="modal-actions">
@@ -2894,6 +2928,9 @@ function saveInstall(){
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
   const amountClick = Number(document.getElementById('j-click')?.value)||0;
   const amountTerminal = Number(document.getElementById('j-term')?.value)||0;
+  // Clamped: a negative debt would pass every `> 0` filter unseen and silently hide a real debt.
+  const debtSom = Math.max(0, Number(document.getElementById('j-debt')?.value)||0);
+  const debtor = (document.getElementById('j-debtor')?.value||'').trim();
   const note = document.getElementById('j-note').value.trim();
   if(editing){
     // Refund original items, then deduct new — net effect keeps stock consistent.
@@ -2919,12 +2956,15 @@ function saveInstall(){
     editing.amountTransfer = amountTransfer;
     editing.amountClick = amountClick;
     editing.amountTerminal = amountTerminal;
+    editing.debtSom = debtSom;
+    editing.debtor = debtor;
     editing.note = note;
     // Re-evaluate approval state: any cashless money in the install requires re-approval.
     editing.approved = !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal, note,
+    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
+                 debtSom, debtor, note,
                  approved: !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0)};
     state.installs.push(job);
     items.forEach(it=>{
@@ -2936,11 +2976,125 @@ function saveInstall(){
     });
   }
   editingInstallId = null;
-  save(); closeModal(); viewInstalls();
+  save(); closeModal();
+  // The edit can start from the Debts page too — return the user to where they came from.
+  if(currentNav === 'debts') viewDebts(); else viewInstalls();
+}
+/* =================== DEBTS =================== */
+function viewDebts(){
+  const list = state.installs.filter(j => (Number(j.debtSom)||0) > 0)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const total = list.reduce((s,j)=>s+(Number(j.debtSom)||0), 0);
+  const rows = list.map(j=>{
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    return `<tr class="unpaid">
+      <td>${j.date||''}</td>
+      <td><b>${escapeHtml(j.carModel||'—')}</b></td>
+      <td>${j.debtor?`<b>${escapeHtml(j.debtor)}</b>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="max-width:260px;font-size:12px">${itemsStr||''}${j.note?`<div style="color:var(--muted)">${escapeHtml(j.note)}</div>`:''}</td>
+      <td><b style="color:var(--neg)">${fmtSom(j.debtSom)}</b></td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="primary" onclick="openRepay('${j.id}')">${t('repay')}</button>
+        <button onclick="openInstall('${j.id}')" style="margin-left:6px">${t('edit')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+  V().innerHTML = `
+    <div class="row">
+      <div class="kpi"><div class="l">${t('totalDebt')}</div>
+        <div class="v" style="color:var(--neg)">${fmtSom(total)}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">${t('debtorsCount')}: ${list.length}</div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;margin-top:12px">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('carModel')}</th><th>${t('debtor')}</th><th>${t('items')}</th><th>${t('debtChip')}</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noDebts')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openRepay(id){
+  const j = state.installs.find(x=>x.id===id); if(!j) return;
+  modal(`
+    <h3>${t('repayTitle')}</h3>
+    <div style="margin-bottom:10px">
+      <b>${escapeHtml(j.carModel||'—')}</b>${j.debtor?' · '+escapeHtml(j.debtor):''}
+      <div style="color:var(--neg);font-weight:700;margin-top:4px">${t('remaining')}: ${fmtSom(j.debtSom)}</div>
+    </div>
+    <label>${t('repayMethod')}</label>
+    <select id="r-method" onchange="repayMethodChanged('${id}')">
+      <option value="som">${t('cashSom')}</option>
+      <option value="usd">USD</option>
+      <option value="click">Click</option>
+      <option value="terminal">${t('paidTerminal')}</option>
+      <option value="transfer">${t('paidTransfer')}</option>
+    </select>
+    <label style="margin-top:10px">${t('repayAmount')}</label>
+    <input id="r-amount" type="number" step="1" min="0" value="${j.debtSom||0}" oninput="updateRepayHint()">
+    <small id="r-amount-hint" style="color:var(--muted);font-size:11px"></small>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveRepay('${id}')">${t('save')}</button>
+    </div>`);
+  updateRepayHint();
+}
+/* The amount field is prefilled with the debt in the unit the chosen method expects.
+   Without this, switching the method to USD while the som figure stays in the field
+   would book e.g. 1 500 000 "dollars" — a ~12 900× revenue inflation. */
+function repayMethodChanged(id){
+  const j = state.installs.find(x=>x.id===id); if(!j) return;
+  const inp = document.getElementById('r-amount'); if(!inp) return;
+  const method = document.getElementById('r-method')?.value || 'som';
+  const debt = Number(j.debtSom)||0;
+  inp.value = method==='usd' ? Math.round(somToUsd(debt)*100)/100 : debt;
+  updateRepayHint();
+}
+function updateRepayHint(){
+  const inp = document.getElementById('r-amount'), hint = document.getElementById('r-amount-hint');
+  if(!inp || !hint) return;
+  const method = document.getElementById('r-method')?.value || 'som';
+  const v = Number(inp.value)||0;
+  hint.textContent = !v ? ''
+    : method==='usd' ? '$'+fmtNum(v)+' = '+fmtNum(Math.round(usdToSom(v)))+' som'
+    : '= '+fmtNum(v)+' som';
+}
+function saveRepay(id){
+  const j = state.installs.find(x=>x.id===id); if(!j) return;
+  const method = document.getElementById('r-method')?.value || 'som';
+  const amt = Number(document.getElementById('r-amount')?.value)||0;
+  if(amt <= 0){ alert(t('invalidAmount')); return; }
+  const debt = Number(j.debtSom)||0;
+  const somEquiv = method==='usd' ? usdToSom(amt) : amt;
+  // Anything past the remaining debt needs an explicit yes before it lands in received
+  // money — this is the last line of defence against a som figure saved as USD.
+  // Small tolerance so USD rounding on an exact repayment doesn't nag.
+  if(somEquiv > debt + Math.max(1000, debt*0.01)){
+    if(!confirm(t('repayOvershoot')
+        .replace('{paid}', fmtNum(Math.round(somEquiv)))
+        .replace('{debt}', fmtNum(debt)))) return;
+  }
+  // The money lands on the install in the form it actually arrived, so revenue,
+  // the payment-method breakdown and the Excel report all pick it up normally.
+  if(method==='usd')           j.amountUsd      = (Number(j.amountUsd)||0)      + amt;
+  else if(method==='click')    j.amountClick    = (Number(j.amountClick)||0)    + amt;
+  else if(method==='terminal') j.amountTerminal = (Number(j.amountTerminal)||0) + amt;
+  else if(method==='transfer') j.amountTransfer = (Number(j.amountTransfer)||0) + amt;
+  else                         j.amountSom      = (Number(j.amountSom)||0)      + amt;
+  j.debtSom = Math.max(0, debt - somEquiv);
+  // Dated log: period reports credit the money to the day it actually arrived, and the
+  // accountant can see what exactly is new on the install. amt is in the method's unit.
+  (j.repayments = j.repayments || []).push({date: today(), method, amt});
+  // Cashless repayment needs the accountant's confirmation, same as everywhere else.
+  if(method==='click' || method==='terminal' || method==='transfer'){
+    j.approved = false; delete j.approvedBy; delete j.approvedAt;
+  }
+  save(); closeModal(); viewDebts();
 }
 function delInstall(id){
   if(!confirm(t('confirmDelete'))) return;
   const job = state.installs.find(x=>x.id===id);
+  // Deleting an install with an open debt erases a receivable — that needs its own yes.
+  if(job && (Number(job.debtSom)||0) > 0 &&
+     !confirm(t('confirmDeleteDebt').replace('{sum}', fmtNum(Number(job.debtSom))))) return;
   if(job && job.items){
     job.items.forEach(it=>{
       const p = state.products.find(x=>x.id===it.productId);
@@ -3006,11 +3160,20 @@ function viewApprovals(){
   }).join('');
   const installRows = installs.map(j => {
     const items = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    // The amounts above are the job's lifetime totals; list the debt repayments separately
+    // so the accountant can tell which money is new and which was verified long ago.
+    const methodName = m => m==='som' ? t('cashSom') : m==='usd' ? 'USD'
+      : m==='click' ? 'Click' : m==='terminal' ? t('paidTerminal') : t('paidTransfer');
+    const repayInfo = (j.repayments||[]).length
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">↩ ${
+          j.repayments.map(r=>`${(r.date||'').slice(5)}: ${r.method==='usd'?fmtUsd(r.amt):fmtSom(r.amt)} (${methodName(r.method)})`).join(' · ')
+        }</div>`
+      : '';
     return `<tr>
       <td>${j.date}</td>
       <td><b>${escapeHtml(j.carModel||'—')}</b></td>
       <td style="font-size:12px">${items||'—'}</td>
-      <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer, j.amountClick, j.amountTerminal)}</td>
+      <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer, j.amountClick, j.amountTerminal)}${repayInfo}</td>
       <td style="text-align:right"><button class="primary" onclick="approveItem('install','${j.id}')">${t('approve')}</button></td>
     </tr>`;
   }).join('');
@@ -3075,10 +3238,22 @@ function viewDashboard(){
   const opExp = totalExp - purchExp;
   const cogs = periodCOGS(state.sales, state.installs);
   const profit = totalRev - cogs - opExp;
+  // Install money for a window counts each debt repayment on the day it arrived, not on
+  // the install's date — otherwise money repaid this week for an old car is invisible here.
+  const installRevWindow = days => state.installs.reduce((s,j)=>{
+    const jobIn = isWithinDays(j.date, days);
+    let v = jobIn ? installRev(j) : 0;
+    (j.repayments||[]).forEach(r=>{
+      const rIn = isWithinDays(r.date, days);
+      if(jobIn && !rIn) v -= repayUsdOf(r);
+      else if(!jobIn && rIn) v += repayUsdOf(r);
+    });
+    return s + v;
+  }, 0);
   const weekRev = state.sales.filter(s=>isWithinDays(s.date,7)).reduce((s,x)=>s+x.totalUsd,0)
-                + state.installs.filter(j=>isWithinDays(j.date,7)).reduce((s,j)=>s+installRev(j),0);
+                + installRevWindow(7);
   const monthRev = state.sales.filter(s=>isWithinDays(s.date,30)).reduce((s,x)=>s+x.totalUsd,0)
-                 + state.installs.filter(j=>isWithinDays(j.date,30)).reduce((s,j)=>s+installRev(j),0);
+                 + installRevWindow(30);
   const weekExp = state.expenses.filter(e=>isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const monthExp = state.expenses.filter(e=>isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const weekCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,7)),
@@ -3139,6 +3314,17 @@ function viewDashboard(){
           <div style="color:var(--muted);font-size:11px">${t('inCash')}</div>
           ${cashless>0?`<div style="color:var(--accent);font-weight:700;font-size:15px;margin-top:4px">+ ${fmtSom(cashless)}</div>
           <div style="color:var(--muted);font-size:11px">Click / ${t('paidTerminal')} / ${t('paidTransfer')}</div>`:''}
+        </div>`;
+      })()}
+      ${(() => {
+        // Money clients still owe — one click through to the debts page.
+        const debtJobs = state.installs.filter(j=>(Number(j.debtSom)||0)>0);
+        if(!debtJobs.length) return '';
+        const tot = debtJobs.reduce((s,j)=>s+Number(j.debtSom), 0);
+        return `<div class="kpi" style="border-color:var(--danger-border);cursor:pointer" onclick="goto('debts')">
+          <div class="l">${t('totalDebt')}</div>
+          <div class="v" style="color:var(--neg)">${fmtSom(tot)}</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">${t('debtorsCount')}: ${debtJobs.length} →</div>
         </div>`;
       })()}
     </div>
@@ -3274,20 +3460,46 @@ function inRange(dateStr, range){
   if(range.to && d > range.to) return false;
   return true;
 }
+/* Debt repayments carry their own date (j.repayments = [{date, method, amt}]), while the
+   repaid money is merged into the install's amount fields, which sit under the install's
+   own — possibly much older — date. Period views must count a repayment in the period the
+   money actually arrived: subtract repayments that left the period (install inside, money
+   outside) and add the ones that entered it (install outside, money inside). Otherwise an
+   August cash repayment on a June car shows up in no August report, and a re-printed June
+   report silently grows. amt is in the method's own unit: USD for 'usd', som otherwise. */
+const repaySomOf = r => r.method==='usd' ? usdToSom(r.amt) : (Number(r.amt)||0);
+const repayUsdOf = r => r.method==='usd' ? (Number(r.amt)||0) : somToUsd(r.amt);
+function repayAdjust(range){
+  const adj = {som:0, usd:0, click:0, terminal:0, transfer:0, entries:[]};
+  state.installs.forEach(j => {
+    const jobIn = inRange(j.date, range);
+    (j.repayments||[]).forEach(r => {
+      const rIn = inRange(r.date, range);
+      if(jobIn !== rIn) adj[r.method==='usd'?'usd':(r.method||'som')] += (rIn ? 1 : -1) * (Number(r.amt)||0);
+      if(rIn) adj.entries.push({j, r});
+    });
+  });
+  adj.usdEquiv = adj.usd + somToUsd(adj.som + adj.click + adj.terminal + adj.transfer);
+  return adj;
+}
 function archiveData(range){
   range = range || archiveRange;
   const sales = state.sales.filter(s=>inRange(s.date, range));
   const installs = state.installs.filter(j=>inRange(j.date, range));
   const expenses = state.expenses.filter(e=>inRange(e.date, range));
   const purchases = state.purchases.filter(p=>inRange(p.date, range));
+  const repayAdj = repayAdjust(range);
   // Revenue counts every payment method, cash or cashless (transfer / Click).
   const totalRev = sales.reduce((s,x)=>s+x.totalUsd,0)
-                 + installs.reduce((s,j)=>s+installAmountUsd(j),0);
+                 + installs.reduce((s,j)=>s+installAmountUsd(j),0)
+                 + repayAdj.usdEquiv;
   // Received per currency in this period (sales + install jobs combined); cashless is som.
   const totalRevUsd = sales.reduce((s,x)=>s+(x.paidUsd||0),0)
-                    + installs.reduce((s,j)=>s+(j.amountUsd||0),0);
+                    + installs.reduce((s,j)=>s+(j.amountUsd||0),0)
+                    + repayAdj.usd;
   const totalRevSom = sales.reduce((s,x)=>s+(x.paidSom||0)+saleCashlessSom(x),0)
-                    + installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0);
+                    + installs.reduce((s,j)=>s+(j.amountSom||0)+installCashlessSom(j),0)
+                    + repayAdj.som + repayAdj.click + repayAdj.terminal + repayAdj.transfer;
   const cogs = periodCOGS(sales, installs);
   const opExp = expenses.filter(e=>e.type!=='purchase').reduce((s,e)=>s+expenseTotalUsd(e),0);
   // Real cash out per currency in this period (op expenses only)
@@ -3304,7 +3516,7 @@ function archiveData(range){
     soldMap[it.productId].revenue += it.priceUsd * it.qty;
   }));
   const productsSold = Object.values(soldMap).sort((a,b)=>b.qty-a.qty);
-  return {sales, installs, expenses, purchases, totalRev, totalRevUsd, totalRevSom, cogs, opExp, opExpUsd, opExpSom, profit, installerPayTotal, purchaseTotal, productsSold};
+  return {sales, installs, expenses, purchases, totalRev, totalRevUsd, totalRevSom, cogs, opExp, opExpUsd, opExpSom, profit, installerPayTotal, purchaseTotal, productsSold, repayAdj};
 }
 function viewArchive(){
   // An empty range legitimately means "all time" once the user has chosen it, so only
@@ -3733,6 +3945,28 @@ function downloadExcelReport(allTime){
     });
     return Object.values(map).filter(a => a.usd > 0 || a.som > 0);
   };
+  /* Per-install amounts as they stood inside this period: any debt repayment dated outside
+     the range is peeled off its method again. So a re-printed closed week still matches the
+     copy the boss already settled against the till, and day banners / profit only count
+     money that actually arrived in the period. */
+  const amountsInPeriod = j => {
+    const a = {usd:Number(j.amountUsd)||0, som:Number(j.amountSom)||0,
+               transfer:Number(j.amountTransfer)||0, click:Number(j.amountClick)||0,
+               terminal:Number(j.amountTerminal)||0};
+    (j.repayments||[]).forEach(r => {
+      if(!inRange(r.date, range)) a[r.method==='usd'?'usd':(r.method||'som')] -= Number(r.amt)||0;
+    });
+    Object.keys(a).forEach(k => { a[k] = Math.max(0, a[k]); });
+    return a;
+  };
+  const inPeriodRevenueSom = j => {
+    const a = amountsInPeriod(j);
+    return usdToSom(a.usd) + a.som + a.transfer + a.click + a.terminal;
+  };
+  // Column A is ~17 characters wide at this font; long note / debt lines soft-wrap, so row
+  // height must budget VISUAL lines, not just hard newlines, or the tail gets clipped.
+  const visualLines = (txt, w) => String(txt).split('\n')
+    .reduce((s,l)=>s+Math.max(1, Math.ceil(l.length/w)), 0);
 
   /* ---------------- title ---------------- */
   mergeRow(put([S(rangeStr, XLS.title)], 24), 0, COLS-1);
@@ -3755,14 +3989,17 @@ function downloadExcelReport(allTime){
   mergeRow(rKpi,0,1); mergeRow(rKpi,3,4);
 
   // Every payment method is summed on its own, so the boss can see exactly how much came
-  // in as cash, as Click, on the terminal and by bank transfer.
+  // in as cash, as Click, on the terminal and by bank transfer. Debt repayments are
+  // re-dated via d.repayAdj: money repaid inside the period on an older car is added,
+  // money repaid later on an in-period car is taken out — the report matches the till.
   const sumBy = (sKey, jKey) => d.sales.reduce((s,x)=>s+(Number(x[sKey])||0), 0)
                               + d.installs.reduce((s,j)=>s+(Number(j[jKey])||0), 0);
-  const gotCash     = sumBy('paidSom',      'amountSom');
-  const gotUsd      = sumBy('paidUsd',      'amountUsd');
-  const gotClick    = sumBy('paidClick',    'amountClick');
-  const gotTerminal = sumBy('paidTerminal', 'amountTerminal');
-  const gotTransfer = sumBy('paidTransfer', 'amountTransfer');
+  const rAdj = d.repayAdj || {som:0, usd:0, click:0, terminal:0, transfer:0, entries:[]};
+  const gotCash     = sumBy('paidSom',      'amountSom')      + rAdj.som;
+  const gotUsd      = sumBy('paidUsd',      'amountUsd')      + rAdj.usd;
+  const gotClick    = sumBy('paidClick',    'amountClick')    + rAdj.click;
+  const gotTerminal = sumBy('paidTerminal', 'amountTerminal') + rAdj.terminal;
+  const gotTransfer = sumBy('paidTransfer', 'amountTransfer') + rAdj.transfer;
   const gotCashless = gotClick + gotTerminal + gotTransfer;
   const rCap = put(pad([
     S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
@@ -3826,7 +4063,7 @@ function downloadExcelReport(allTime){
   let jobIdx = 0;
   byDay.forEach(group => {
     // ---- day banner ----
-    const dayRevenue = group.jobs.reduce((s,j)=>s+usdToSom(installAmountUsd(j)), 0);
+    const dayRevenue = group.jobs.reduce((s,j)=>s+inPeriodRevenueSom(j), 0);
     const daySpend = group.jobs.reduce((s,j)=>s+usdToSom(installCOGS(j))
       + jobPayoutList(j).reduce((t,a)=>t+usdToSom(a.usd)+a.som, 0), 0);
     const label = group.day
@@ -3857,7 +4094,8 @@ function downloadExcelReport(allTime){
       return nameOf(a.installerId) + ' — ' + (m.join(' + ') || 'не выплачено');
     }).join('\n') || 'установщик не назначен';
     // Everything in this section is reported in som — the currency the shop actually works in.
-    const revenue = usdToSom(installAmountUsd(j));
+    const A = amountsInPeriod(j);
+    const revenue = inPeriodRevenueSom(j);
     const payment = payouts.reduce((s,a)=>s+usdToSom(a.usd)+a.som, 0);
     const partsSom = usdToSom(installCOGS(j));
     const spend = partsSom + payment;                      // everything this car cost us
@@ -3865,17 +4103,20 @@ function downloadExcelReport(allTime){
     const top = rows.length;
     // The note the user typed on the install goes straight under the car model, so it is
     // read on the car's own line instead of being lost.
-    const carCell = (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '');
+    const carCell = (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '')
+      + ((Number(j.debtSom)||0) > 0
+          ? '\n⚠ Долг: ' + nfRu(j.debtSom) + ' сум' + (j.debtor ? ' — ' + j.debtor : '')
+          : '');
     // The payout cell is merged down the whole job; give the first row extra height when the
     // installer list needs more room than the part rows provide (e.g. 3 installers, 1 part).
-    const tallest = Math.max(payoutTxt.split('\n').length, carCell.split('\n').length);
+    const tallest = Math.max(visualLines(payoutTxt, 24), visualLines(carCell, 17));
     const shortfall = Math.max(0, tallest*15 - parts.length*20);
     parts.forEach((it, k) => {
       const last = k === parts.length-1;
       const carry = parts.length>1 ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
         ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
-           S(payoutTxt,st.payout), S(moneyTextRu(j.amountUsd,j.amountSom,j.amountTransfer,j.amountClick,j.amountTerminal),st.cell),
+           S(payoutTxt,st.payout), S(moneyTextRu(A.usd,A.som,A.transfer,A.click,A.terminal),st.cell),
            S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
@@ -3902,6 +4143,60 @@ function downloadExcelReport(allTime){
     mergeRow(put(pad([S('за этот период установок нет', XLS.cell)], XLS.cell), 20), 0, COLS-1);
   }
 
+  /* ---------------- debts: who still owes money ----------------
+     Outstanding debts are a TODAY balance, not a period event, so they always come from
+     the full state — a monthly report must not hide the debt on an older install (the app's
+     Долги page and dashboard KPI count the same way). Repayments received inside the period
+     are listed next to them: that is the money already sitting in the method breakdown
+     above whose car row may be in an older report. Later section numbers shift by secShift. */
+  const debtJobs = state.installs.filter(j => (Number(j.debtSom)||0) > 0)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const periodRepays = [...rAdj.entries]
+    .sort((x,y)=>(y.r.date||'').localeCompare(x.r.date||''));
+  const secShift = (debtJobs.length || periodRepays.length) ? 1 : 0;
+  if(debtJobs.length || periodRepays.length){
+    gap();
+    mergeRow(put([S('2. Долги клиентов', XLS.section)]), 0, COLS-1);
+  }
+  if(debtJobs.length){
+    put(pad([S('Дата',XLS.headBlue), S('Машина',XLS.headBlue), S('Должник',XLS.headBlue),
+             S('Заметка',XLS.headBlue), S('',XLS.headBlue), S('',XLS.headBlue),
+             S('Долг (сум)',XLS.headBlue)], XLS.headBlue), 22);
+    const firstDebtRow = rows.length;
+    debtJobs.forEach((j,idx)=>{
+      const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
+      put(pad([S((j.date||'').slice(0,10),cs), S(j.carModel||'—',cs), S(j.debtor||'—',cs),
+               S(j.note||'',cs), S('',cs), S('',cs), S(Number(j.debtSom),ms)], cs), 20);
+    });
+    const rDebtTotal = put(pad([S('ВСЕГО ДОЛГОВ НА СЕГОДНЯ (не входит в выручку):', XLS.totalLabel),
+      S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill),
+      S('',XLS.totalFill),
+      Fx(`SUM(${at(firstDebtRow,6)}:${at(rows.length-1,6)})`, XLS.totalExpense,
+         debtJobs.reduce((s,j)=>s+Number(j.debtSom),0))], XLS.totalFill), 22);
+    mergeRow(rDebtTotal, 0, 5);
+  }
+  if(periodRepays.length){
+    if(debtJobs.length) gap();
+    put(pad([S('Погашено в этот период',XLS.headBlue), S('Машина',XLS.headBlue), S('Должник',XLS.headBlue),
+             S('Вид оплаты',XLS.headBlue), S('',XLS.headBlue), S('',XLS.headBlue),
+             S('Сумма (сум)',XLS.headBlue)], XLS.headBlue), 22);
+    const firstRepayRow = rows.length;
+    const mName = m => m==='som' ? 'Наличные (сум)' : m==='usd' ? 'Наличные (USD)'
+      : m==='click' ? 'Click' : m==='terminal' ? 'Терминал' : 'Перечисление';
+    periodRepays.forEach(({j, r}, idx)=>{
+      const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
+      put(pad([S((r.date||'').slice(0,10),cs), S(j.carModel||'—',cs), S(j.debtor||'—',cs),
+               S(mName(r.method) + (r.method==='usd' ? ': $'+nfRu(r.amt) : ''),cs),
+               S('',cs), S('',cs), S(Math.round(repaySomOf(r)),ms)], cs), 20);
+    });
+    const rRepayTotal = put(pad([S('ВСЕГО ПОГАШЕНО ЗА ПЕРИОД (уже входит в поступления выше):', XLS.totalLabel),
+      S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill),
+      S('',XLS.totalFill),
+      Fx(`SUM(${at(firstRepayRow,6)}:${at(rows.length-1,6)})`, XLS.totalRevenue,
+         periodRepays.reduce((s,e)=>s+Math.round(repaySomOf(e.r)),0))], XLS.totalFill), 22);
+    mergeRow(rRepayTotal, 0, 5);
+  }
+
   /* ---------------- 2. every part used, with what it cost in total ---------------- */
   const partTotals = {};
   d.installs.forEach(j => (j.items||[]).forEach(it => {
@@ -3912,7 +4207,7 @@ function downloadExcelReport(allTime){
   }));
   const partList = Object.values(partTotals).sort((a,b)=>b.som-a.som);
   gap();
-  mergeRow(put([S('2. Итого по товарам — что израсходовано со склада', XLS.section)]), 0, COLS-1);
+  mergeRow(put([S((2+secShift)+'. Итого по товарам — что израсходовано со склада', XLS.section)]), 0, COLS-1);
   put(pad([S('Название товара',XLS.headBlue), S('Израсходовано (шт)',XLS.headBlue),
            S('Себестоимость за шт (сум)',XLS.headBlue), S('',XLS.headBlue), S('',XLS.headBlue),
            S('Итого (сум)',XLS.headBlue)], XLS.headBlue), 24);
@@ -3982,7 +4277,7 @@ function downloadExcelReport(allTime){
   const stockPurchaseTotal = expLines.filter(e=>e.isStockPurchase).reduce((s,e)=>s+e.total, 0);
 
   gap();
-  mergeRow(put([S('3. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
+  mergeRow(put([S((3+secShift)+'. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
   const EXP_MONEY_COL = 3;
   put(pad([S('Кому / за что',XLS.headBlue), S('Машина / заметка',XLS.headBlue),
            S('Выдано',XLS.headBlue), S('Сумма (сум)',XLS.headBlue),
@@ -4006,7 +4301,7 @@ function downloadExcelReport(allTime){
   /* ---------------- 3. counter sales · 4. purchases (same visual language) ----------------
      Appended only when there is something to show, so a shop that only does installations
      gets exactly the two-section layout of the reference workbook. */
-  let extraNo = 3;
+  let extraNo = 3 + secShift;
   const plainBlock = (title, headers, lines, moneyCol) => {
     if(!lines.length) return;
     gap();
@@ -4308,16 +4603,26 @@ function wipeData(){
     defectives: state.defectives || [],
     products: (state.products || []).map(p => ({...p})), // includes original stock per product
   };
+  // A debt is an outstanding balance, not a period event — wiping it with the period
+  // would silently erase real receivables. Carry each one over as a stripped record:
+  // no money, parts or payouts (those belong to the wiped period), just the claim.
+  // A later repayment gets logged with its own date and lands in the new period's reports.
+  const debtCarry = (state.installs || [])
+    .filter(j => (Number(j.debtSom)||0) > 0)
+    .map(j => ({id:j.id, date:j.date, carModel:j.carModel, note:j.note,
+                debtor:j.debtor, debtSom:j.debtSom, repayments:[], items:[],
+                amountUsd:0, amountSom:0, amountTransfer:0, amountClick:0, amountTerminal:0,
+                approved:true, carriedOver:true}));
   state.sales = [];
   state.purchases = [];
-  state.installs = [];
+  state.installs = debtCarry;
   state.expenses = [];
   state.stockLogs = [];
   state.defectives = [];
   state.products = (state.products || []).map(p => ({...p, stock: 0}));
   save();
   updateRateLabel();
-  alert(t('wipeDone'));
+  alert(t('wipeDone') + (debtCarry.length ? '\n' + t('wipeDebtsKept').replace('{n}', debtCarry.length) : ''));
   viewSettings();
 }
 function restoreOldData(){
