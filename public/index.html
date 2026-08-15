@@ -4381,7 +4381,7 @@ function downloadExcelReport(allTime){
      gets exactly the two-section layout of the reference workbook. */
   let extraNo = 3 + secShift;
   const plainBlock = (title, headers, lines, moneyCol) => {
-    if(!lines.length) return;
+    if(!lines.length) return null;
     gap();
     mergeRow(put([S((++extraNo)+'. '+title, XLS.section)]), 0, COLS-1);
     put(pad(headers.map(h=>S(h,XLS.headBlue)), XLS.headBlue), 24);
@@ -4394,8 +4394,9 @@ function downloadExcelReport(allTime){
     const rTot = put(pad([S('ИТОГО:',XLS.totalLabel)], XLS.totalFill).map((v,c)=>
       c===moneyCol ? Fx(`SUM(${at(first,moneyCol)}:${at(rows.length-1,moneyCol)})`, XLS.totalRevenue, blockTotal) : v), 22);
     mergeRow(rTot, 0, moneyCol-1);
+    return rTot;
   };
-  plainBlock('Продажи в магазине',
+  const rSalesTotal = plainBlock('Продажи в магазине',
     ['Дата','Проданные товары','Кассир','Форма оплаты','Получено от клиента','','Сумма (сум)'],
     [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>[
       new Date(s.date).toLocaleDateString('ru-RU'),
@@ -4425,14 +4426,23 @@ function downloadExcelReport(allTime){
     purchaseRows.map(p => [p.date, p.what, p.who, p.form, '', '', p.som]), 6);
 
   /* ---------------- patch the KPI formulas now that every row number is known ---------------- */
-  const costRef = rCostTotal!=null ? at(rCostTotal,COST_COL) : null;
-  // Выручка is no longer its own column — it is расходы + прибыль, which is the same number.
+  // Counter sales are money too: their cash already counts towards "СДАНО БОССУ" and sits in
+  // the payment-method table, so ВЫРУЧКА and ЧИСТАЯ ПРИБЫЛЬ must include them as well —
+  // otherwise the report contradicts itself the first time something is sold over the
+  // counter. The parts sold cost money as well, hence the sales-side себестоимость.
+  const salesRevenueSom = d.sales.reduce((s,x)=>s+usdToSom(x.totalUsd||0), 0);
+  const salesCostSom    = usdToSom(d.sales.reduce((s,x)=>s+saleCOGS(x), 0));
+  const costRef = rCostTotal!=null && salesCostSom === 0 ? at(rCostTotal,COST_COL) : null;
+  // Выручка is no longer its own column — it is расходы + прибыль, which is the same number,
+  // plus the shop-sales block when there is one.
   const revRef  = rSpendTotal!=null
-    ? at(rSpendTotal,SPEND_COL)+'+'+at(rProfitTotal,PROFIT_COL) : null;
+    ? at(rSpendTotal,SPEND_COL)+'+'+at(rProfitTotal,PROFIT_COL)
+      + (rSalesTotal!=null ? '+'+at(rSalesTotal,6) : '') : null;
   const expRef  = rExpTotal!=null  ? at(rExpTotal,EXP_MONEY_COL) : null;
   // Values are computed here as well as referenced by formula, so the cards read correctly
   // even in a viewer that never recalculates.
-  const vRevenue  = totSpend + totProfit;                  // = money taken from clients
+  const vRevenue  = totSpend + totProfit + salesRevenueSom;   // installs + shop sales
+  const vCost     = totCost + salesCostSom;                   // parts fitted + parts sold
   const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
   // The boss receives CASH only — som and dollars from the till. Money that came in by
   // Click, terminal or bank transfer never passes through his hands, so it is not added;
@@ -4443,12 +4453,12 @@ function downloadExcelReport(allTime){
   const vHanded   = gotCash + usdToSom(gotUsd) - vExpensesCash;
   // Профит: выручка − себестоимость деталей − расходы. Закупки не вычитаются: те же товары
   // уже посчитаны как себестоимость, когда деталь встала на машину.
-  const vProfit   = vRevenue - totCost - vExpenses;
+  const vProfit   = vRevenue - vCost - vExpenses;
   const kpi = rows[rKpi].c;
   kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
   kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
   kpi[3] = S(vHanded, XLS.kpiNavy);
-  kpi[5] = costRef ? Fx(costRef, XLS.kpiPurple, totCost) : S(totCost, XLS.kpiPurple);
+  kpi[5] = costRef ? Fx(costRef, XLS.kpiPurple, vCost) : S(vCost, XLS.kpiPurple);
   // Выручка − себестоимость − расходы без закупок (закупки уже сидят в себестоимости)
   kpi[6] = S(vProfit, XLS.kpiAmber);
 
