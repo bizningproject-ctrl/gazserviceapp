@@ -4072,7 +4072,7 @@ function downloadExcelReport(allTime){
   const rCap = put(pad([
     S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
     S('Мастера + прочее · БЕЗ закупок', XLS.capGrey),
-    S('Наличные − расходы · закупки и Click НЕ входят', XLS.capBlue), S('', XLS.kpiFillBlue),
+    S('Наличные − расходы наличными · Click, терминал, перевод и закупки НЕ входят', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
     S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
   mergeRow(rCap,0,1); mergeRow(rCap,3,4);
@@ -4324,6 +4324,7 @@ function downloadExcelReport(allTime){
       category: cars.join(', '),
       form: nfRu(p.som) + ' сум',
       total: p.som,
+      cash: p.som,          // wages are always handed over in cash
     };
   });
   // Those payouts are already listed above; don't repeat them among the general expenses.
@@ -4347,6 +4348,9 @@ function downloadExcelReport(allTime){
       category: [reason, e.note].filter(Boolean).join(' · ') || '—',
       form: moneyTextRu(e.amountUsd, e.amountSom, 0, e.amountClick, e.amountTerminal),
       total: usdToSom(e.amountUsd||0) + (e.amountSom||0) + expenseCashlessSom(e),
+      // Only the part actually paid out of the till reduces the cash handed to the boss:
+      // an expense paid by Click or terminal leaves the account, not the drawer.
+      cash: usdToSom(e.amountUsd||0) + (e.amountSom||0),
     };
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
@@ -4430,10 +4434,13 @@ function downloadExcelReport(allTime){
   // even in a viewer that never recalculates.
   const vRevenue  = totSpend + totProfit;                  // = money taken from clients
   const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
-  // The boss receives cash only. Installer wages and the other expenses come out of that
-  // cash first; Click / terminal money never passes through his hands at all, and stock
-  // purchases are not touched here — he pays the supplier himself, later.
-  const vHanded   = gotCash + usdToSom(gotUsd) - vExpenses;
+  // The boss receives CASH only — som and dollars from the till. Money that came in by
+  // Click, terminal or bank transfer never passes through his hands, so it is not added;
+  // an expense paid by Click or terminal did not leave the till either, so only the cash
+  // part of the expenses is taken off; and stock purchases are not touched here at all,
+  // because he settles those with the supplier himself, afterwards.
+  const vExpensesCash = expLines.reduce((s,e)=>s+(e.cash!=null ? e.cash : e.total), 0);
+  const vHanded   = gotCash + usdToSom(gotUsd) - vExpensesCash;
   // Профит: выручка − себестоимость деталей − расходы. Закупки не вычитаются: те же товары
   // уже посчитаны как себестоимость, когда деталь встала на машину.
   const vProfit   = vRevenue - totCost - vExpenses;
