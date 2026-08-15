@@ -4071,8 +4071,8 @@ function downloadExcelReport(allTime){
   const gotCashless = gotClick + gotTerminal + gotTransfer;
   const rCap = put(pad([
     S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
-    S('Мастера + закупки + прочее', XLS.capGrey),
-    S('Наличные − расходы · Click НЕ входит', XLS.capBlue), S('', XLS.kpiFillBlue),
+    S('Мастера + прочее · БЕЗ закупок', XLS.capGrey),
+    S('Наличные − расходы · закупки и Click НЕ входят', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
     S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
   mergeRow(rCap,0,1); mergeRow(rCap,3,4);
@@ -4333,7 +4333,13 @@ function downloadExcelReport(allTime){
   }));
   // "Категория" carries the note the user typed, so the reason for the money is on the row.
   // A payout made without a car carries the reason it was paid instead.
-  const expLines = payLines.concat(d.expenses.filter(e=>!groupedPayExpenseIds.has(e.id)).map(e=>{
+  // Buying stock is NOT one of the shop's daily expenses: the boss settles with the supplier
+  // himself, afterwards, out of his own money. So it never leaves the till, must not be
+  // deducted from the cash handed to him, and is not a cost of this period's work either —
+  // that cost arrives as себестоимость when the part is actually fitted. It keeps its own
+  // section further down, where every som of it stays visible.
+  const isPurchaseExp = e => e.type === 'purchase';
+  const expLines = payLines.concat(d.expenses.filter(e=>!groupedPayExpenseIds.has(e.id) && !isPurchaseExp(e)).map(e=>{
     const reason = isPayReason(e.installId) ? LOCALES.ru['reason_'+e.installId] : '';
     return {
       date: (e.date||'').slice(0,10),
@@ -4341,16 +4347,11 @@ function downloadExcelReport(allTime){
       category: [reason, e.note].filter(Boolean).join(' · ') || '—',
       form: moneyTextRu(e.amountUsd, e.amountSom, 0, e.amountClick, e.amountTerminal),
       total: usdToSom(e.amountUsd||0) + (e.amountSom||0) + expenseCashlessSom(e),
-      // Buying stock is money out of the till, but it is NOT a cost of this period's work —
-      // that cost arrives as себестоимость when the part is actually fitted. Counting both
-      // would subtract the same goods twice and can push profit below zero.
-      isStockPurchase: e.type === 'purchase',
     };
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const stockPurchaseTotal = expLines.filter(e=>e.isStockPurchase).reduce((s,e)=>s+e.total, 0);
 
   gap();
-  mergeRow(put([S((3+secShift)+'. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
+  mergeRow(put([S((3+secShift)+'. Дневные расходы и выплаты (удерживаются из кассы · без закупок)', XLS.section)]), 0, COLS-1);
   const EXP_MONEY_COL = 3;
   put(pad([S('Кому / за что',XLS.headBlue), S('Машина / заметка',XLS.headBlue),
            S('Выдано',XLS.headBlue), S('Сумма (сум)',XLS.headBlue),
@@ -4398,13 +4399,26 @@ function downloadExcelReport(allTime){
       s.cashier||'', payMethodLabelRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal),
       moneyTextRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal), '',
       usdToSom(s.totalUsd||0)]), 6);
-  plainBlock('Закупки у поставщиков',
-    ['Дата','Закупленные товары','Поставщик','Примечание','','','Сумма (сум)'],
-    [...d.purchases].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(p=>{
+  /* Purchases come from two places: records made on the Purchases page, and purchase money
+     typed straight into Расходы (which is how the shop actually enters most of it). Both are
+     listed here — an expense that belongs to a purchase record would be a duplicate, so it is
+     skipped. This block is money the boss settles himself; it is deliberately NOT part of
+     "ИТОГО РАСХОДЫ" and NOT deducted from "СДАНО БОССУ". */
+  const purchaseRows = [
+    ...d.purchases.map(p => {
       const sup = state.suppliers.find(s=>s.id===p.supplierId);
-      return [p.date||'', (p.items||[]).map(i=>i.name+' ×'+i.qty).join(', '),
-              sup?sup.name:'—', p.note||'', '', '', usdToSom(p.totalUsd||0)];
-    }), 6);
+      return {date:p.date||'', what:(p.items||[]).map(i=>i.name+' ×'+i.qty).join(', ') || (p.note||'—'),
+              who: sup?sup.name:'—', form:'—', som: usdToSom(p.totalUsd||0)};
+    }),
+    ...d.expenses.filter(e => isPurchaseExp(e) &&
+        !(e.purchaseId && state.purchases.some(p => p.id === e.purchaseId)))
+      .map(e => ({date:(e.date||'').slice(0,10), what:e.note||'—', who:'—',
+                  form: moneyTextRu(e.amountUsd, e.amountSom, 0, e.amountClick, e.amountTerminal),
+                  som: usdToSom(e.amountUsd||0) + (e.amountSom||0) + expenseCashlessSom(e)})),
+  ].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  plainBlock('Закупки товара — платит босс сам, из кассы не удерживается',
+    ['Дата','Что закуплено / за что','Поставщик','Форма оплаты','','','Сумма (сум)'],
+    purchaseRows.map(p => [p.date, p.what, p.who, p.form, '', '', p.som]), 6);
 
   /* ---------------- patch the KPI formulas now that every row number is known ---------------- */
   const costRef = rCostTotal!=null ? at(rCostTotal,COST_COL) : null;
@@ -4417,12 +4431,12 @@ function downloadExcelReport(allTime){
   const vRevenue  = totSpend + totProfit;                  // = money taken from clients
   const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
   // The boss receives cash only. Installer wages and the other expenses come out of that
-  // cash first, and Click / terminal money never passes through his hands at all.
+  // cash first; Click / terminal money never passes through his hands at all, and stock
+  // purchases are not touched here — he pays the supplier himself, later.
   const vHanded   = gotCash + usdToSom(gotUsd) - vExpenses;
-  // Profit must not subtract stock purchases AND себестоимость — they are the same goods.
-  // Purchases leave the till (so they reduce "сдано боссу") but the cost of this period's
-  // work is себестоимость alone.
-  const vProfit   = vRevenue - totCost - (vExpenses - stockPurchaseTotal);
+  // Профит: выручка − себестоимость деталей − расходы. Закупки не вычитаются: те же товары
+  // уже посчитаны как себестоимость, когда деталь встала на машину.
+  const vProfit   = vRevenue - totCost - vExpenses;
   const kpi = rows[rKpi].c;
   kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
   kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
