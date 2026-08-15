@@ -26,6 +26,10 @@ curl -s localhost:3000/api/health     # expect {"ok":true}
 
 Repo: https://github.com/bizningproject-ctrl/gazserviceapp — everything is on `main`.
 
+Then open the site and check three things: you can log in, Установки still lists
+the cars, and Настройки shows the same курс. That is enough to know the volume
+was reused and nothing was reset.
+
 ## ⚠ Never run this
 
 ```bash
@@ -62,13 +66,24 @@ above first.
 
 ## Logins
 
+**The owner has changed the login and the password on the live server.** Ask him —
+they are not written down here on purpose.
+
+The names below are only seeded into a **brand-new, empty** database (a fresh
+install with no users at all), never into a running one:
+
 | Role | User | Password |
 |---|---|---|
 | Boss | `boss` | `million` |
 | Seller | `seller` | `work` |
 | Accountant | `accountant` | `check` |
 
-Change these in the app: Пользователи (boss only).
+Manage accounts in the app: Пользователи (boss only).
+
+> Older builds re-created any missing default account on every restart, which quietly
+> restored `boss` / `million` after the owner renamed it. Fixed — seeding now happens
+> only into a completely empty users table. After updating, look once at Пользователи:
+> if a `boss` account is listed that the owner did not create, delete it.
 
 ## Adding an SSH key for the owner's laptop
 
