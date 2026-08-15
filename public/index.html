@@ -751,9 +751,9 @@ async function syncToBackend(){
 let evtSource = null;
 function closeEvents(){ if(evtSource){ try{evtSource.close();}catch(_){} evtSource = null; } }
 function pendingCount(){
-  return (state.sales||[]).filter(s=>s && s.approved===false).length
-       + (state.installs||[]).filter(j=>j && j.approved===false).length
-       + (state.expenses||[]).filter(e=>e && e.approved===false).length;
+  return (state.sales||[]).filter(isPending).length
+       + (state.installs||[]).filter(isPending).length
+       + (state.expenses||[]).filter(isPending).length;
 }
 function notifyAccountant(delta){
   if(typeof Notification === 'undefined') return;
@@ -1021,9 +1021,15 @@ let role = sessionStorage.getItem('role') || null;
 const NAV = () => NAV_ALL.filter(n=>n.roles.includes(role));
 const isBoss = () => role==='boss';
 const isAccountant = () => role==='accountant';
-// Approval status helper. Records without an explicit `approved:false` are treated as approved
-// (legacy/auto-approved); only records explicitly marked false are pending.
-const isPending = (rec) => rec && rec.approved === false;
+/* Only ПЕРЕЧИСЛЕНИЕ — a bank transfer to the company account — goes to the accountant.
+   Click and the card terminal are settled by the bank itself and are not checked by hand,
+   so they never queue. Records without an explicit `approved:false` are treated as approved
+   (legacy / auto-approved).
+   The transfer test is applied on READ as well as on write, so records queued by an older
+   build (or by another device still running one) for Click / terminal money drop out of the
+   queue on their own instead of needing to be clicked through one by one. */
+const hasTransferMoney = (rec) => (Number(rec.amountTransfer)||0) > 0 || (Number(rec.paidTransfer)||0) > 0;
+const isPending = (rec) => !!rec && rec.approved === false && hasTransferMoney(rec);
 
 let currentNav = 'dash';
 function togglePass(){
@@ -1448,7 +1454,8 @@ function finalizeSale(){
     items: lines.map(l=>({productId:l.productId, name:l.name, qty:l.qty, priceUsd:l.unitPriceUsd})),
     paidUsd, paidSom, paidTransfer, paidClick, paidTerminal, totalUsd: received,
     // Cashless money needs the accountant to confirm it actually landed.
-    approved: !(paidTransfer > 0 || paidClick > 0 || paidTerminal > 0)
+    // Only a bank transfer waits for the accountant; Click and terminal do not.
+    approved: !(paidTransfer > 0)
   });
   cart.forEach(it=>{
     const p = state.products.find(x=>x.id===it.productId);
@@ -3015,13 +3022,13 @@ function saveInstall(){
     editing.debtSom = debtSom;
     editing.debtor = debtor;
     editing.note = note;
-    // Re-evaluate approval state: any cashless money in the install requires re-approval.
-    editing.approved = !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0);
+    // Re-evaluate approval state: only a bank transfer requires the accountant.
+    editing.approved = !(amountTransfer > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
     const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
                  debtSom, debtor, note,
-                 approved: !(amountTransfer > 0 || amountClick > 0 || amountTerminal > 0)};
+                 approved: !(amountTransfer > 0)};
     state.installs.push(job);
     items.forEach(it=>{
       const p = state.products.find(x=>x.id===it.productId);
@@ -3141,8 +3148,9 @@ function saveRepay(id){
   // Dated log: period reports credit the money to the day it actually arrived, and the
   // accountant can see what exactly is new on the install. amt is in the method's unit.
   (j.repayments = j.repayments || []).push({date: today(), method, amt});
-  // Cashless repayment needs the accountant's confirmation, same as everywhere else.
-  if(method==='click' || method==='terminal' || method==='transfer'){
+  // A repayment by bank transfer needs the accountant's confirmation; Click and terminal
+  // do not, same rule as everywhere else.
+  if(method==='transfer'){
     j.approved = false; delete j.approvedBy; delete j.approvedAt;
   }
   save(); closeModal(); viewDebts();
