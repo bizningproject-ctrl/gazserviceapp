@@ -83,6 +83,10 @@
     font-size:11px;font-weight:800;letter-spacing:.3px;margin-right:6px;vertical-align:1px;
     background:rgba(124,227,139,.16);color:#7ce38b;border:1px solid rgba(124,227,139,.38)}
   html[data-theme="light"] .jobno{background:#d9f5e1;color:#15803d;border-color:#9fdcb4}
+  /* Car plate — reads like a small licence plate, deliberately quieter than the car model */
+  .plate{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;
+    letter-spacing:.6px;margin-left:6px;vertical-align:1px;font-family:Consolas,Menlo,monospace;
+    background:var(--chip);color:var(--muted);border:1px solid var(--line)}
   /* Unpaid install row — subtle red tint + red border accent */
   tr.unpaid{background:rgba(220,38,38,0.08);box-shadow:inset 4px 0 0 0 var(--neg)}
   tr.unpaid:hover{background:rgba(220,38,38,0.14)}
@@ -295,6 +299,7 @@ const LOCALES = {
     unpaid:'Unpaid',
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
+    plate:'Plate number', plateHint:'01A123BC',
     carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
     carModelRequired:'Write the car model name',
     exportPeriod:'Excel will cover this period', excelByPeriod:'Excel for a period',
@@ -437,6 +442,7 @@ const LOCALES = {
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
+    plate:'Гос. номер', plateHint:'01A123BC',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
     carModelRequired:'Впишите название модели авто',
     exportPeriod:'Excel будет за этот период', excelByPeriod:'Excel за период',
@@ -579,6 +585,7 @@ const LOCALES = {
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
+    plate:'Davlat raqami', plateHint:'01A123BC',
     carModelOther:'Avto modeli nomi', carModelOtherHint:'masalan: Gentra, Hyundai Accent…',
     carModelRequired:'Avto modeli nomini yozing',
     exportPeriod:'Excel shu davr uchun bo\'ladi', excelByPeriod:'Davr uchun Excel',
@@ -871,6 +878,31 @@ function installNoMap(list){
   return map;
 }
 const installNoOf = (j, map) => (map || installNoMap())[j.id] || 0;
+
+/* =================== PLATE NUMBER =================== */
+/* Before there was a field for it, the plate was typed into the note — "01E462ED",
+   "01M 875 PC QARZ XAMDAM TOGA". So when the field is empty, pull a plate-shaped token
+   out of the note instead of showing nothing. Uzbek formats: 01A123BC and 01 123 ABC,
+   with or without spaces. Everything else in a note ("QARZ TEMUR AKA", "PROPAN BARTER")
+   fails the pattern and is left alone. */
+const PLATE_RE = /\b(\d{2}\s?[A-Z]\s?\d{3}\s?[A-Z]{2}|\d{2}\s?\d{3}\s?[A-Z]{3})\b/i;
+function plateOf(j){
+  const own = String(j && j.plate || '').trim();
+  if(own) return own;
+  const m = String(j && j.note || '').match(PLATE_RE);
+  return m ? m[0].toUpperCase().replace(/\s+/g,' ') : '';
+}
+// Grey plate chip for the HTML lists; plain text for xlsx cells and <option> labels.
+const plateChip = p => p ? `<span class="plate">${escapeHtml(p)}</span>` : '';
+/* What is left of the note once the plate has been taken out of it, so the number is not
+   printed twice next to itself: "01M 875 PC QARZ XAMDAM TOGA" → "QARZ XAMDAM TOGA", and a
+   note that was nothing but the plate disappears entirely. A note is left untouched when
+   the plate is stored in its own field. */
+function noteWithoutPlate(j){
+  const note = String(j && j.note || '').trim();
+  if(!note || String(j && j.plate || '').trim()) return note;
+  return note.replace(PLATE_RE, '').replace(/\s{2,}/g, ' ').trim();
+}
 // Light-green badge for the HTML lists; plain "№N " prefix for xlsx cells and <option> text.
 const jobNoBadge = n => n ? `<span class="jobno">№${n}</span>` : '';
 const jobNoText  = n => n ? '№' + n + ' · ' : '';
@@ -2231,8 +2263,10 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
       const summary = (j.items||[]).slice(0,2).map(i=>i.name).join(', ');
       const dup = dupCount[dupKey(j)] > 1;
       const who = dup ? installPayees(j).join(', ') : '';
+      const plate = plateOf(j);
       return `<option value="${j.id}"${sel}${dup?' style="color:var(--pos);font-weight:700"':''}>`
         + `№${installNoOf(j, noMap)} · ${escapeHtml(j.date)} — ${escapeHtml(car)}`
+        + `${plate?' ['+escapeHtml(plate)+']':''}`
         + `${summary?' · '+escapeHtml(summary):''}${who?' · 👷 '+escapeHtml(who):''}</option>`;
     }).join('');
     // The installer sometimes has to be paid before any car is finished — pick the reason
@@ -2724,9 +2758,10 @@ function viewInstalls(){
     }
     const payees = installPayees(j);
     const no = jobNoBadge(installNoOf(j, noMap));
+    const pl = plateChip(plateOf(j));
     const carCell = j.carModel
-      ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
-      : (payees.length ? no + payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') : no + '<span style="color:var(--muted)">—</span>');
+      ? `${no}<b>${escapeHtml(j.carModel)}</b>${pl}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+      : (payees.length ? no + payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') + pl : no + '<span style="color:var(--muted)">—</span>' + pl);
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     const payout = installPayoutTotals(j);
     const unpaid = (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && installCashlessSom(j) <= 0;
@@ -2747,7 +2782,7 @@ function viewInstalls(){
       <td style="max-width:260px;font-size:12px">${itemsStr||'<span style="color:var(--muted)">—</span>'}</td>
       <td>${receivedCell}</td>
       <td>${fmtDualPay(payout.som, payout.usd)}</td>
-      <td>${escapeHtml(j.note||'')}</td>
+      <td>${escapeHtml(noteWithoutPlate(j))}</td>
       <td style="text-align:right;white-space:nowrap"><button onclick="openInstall('${j.id}')">${t('edit')}</button><button class="danger" onclick="delInstall('${j.id}')" style="margin-left:6px">${t('del')}</button></td>
     </tr>`;
   }).join('');
@@ -2830,6 +2865,11 @@ function openInstall(id){
     <div id="j-car-other-wrap" style="margin-top:8px;${showOther?'':'display:none'}">
       <label>${t('carModelOther')}</label>
       <input id="j-car-other" type="text" placeholder="${t('carModelOtherHint')}" value="${escapeHtml(customCar)}">
+    </div>
+    <div style="margin-top:8px">
+      <label>${t('plate')}</label>
+      <input id="j-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
+             value="${editing?escapeAttr(plateOf(editing)):''}">
     </div>
     <label style="margin-top:12px">${t('items')}</label>
     <div id="j-items"></div>
@@ -2986,6 +3026,8 @@ function saveInstall(){
     if(!typed){ alert(t('carModelRequired')); return; }
     carModel = typed;                       // save the real name, not the word "Other"
   }
+  // Stored upper-case and space-normalised, so "01a 123 bc" and "01A123BC" match when searched.
+  const plate = (document.getElementById('j-plate')?.value || '').trim().toUpperCase().replace(/\s+/g,' ');
   const amountUsd = Number(document.getElementById('j-usd').value)||0;
   const amountSom = Number(document.getElementById('j-som').value)||0;
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
@@ -3013,6 +3055,7 @@ function saveInstall(){
     });
     editing.date = date;
     editing.carModel = carModel;
+    editing.plate = plate;
     editing.items = items;
     editing.amountUsd = amountUsd;
     editing.amountSom = amountSom;
@@ -3026,7 +3069,7 @@ function saveInstall(){
     editing.approved = !(amountTransfer > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
+    const job = {id:uid(), date, carModel, plate, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
                  debtSom, debtor, note,
                  approved: !(amountTransfer > 0)};
     state.installs.push(job);
@@ -3053,9 +3096,9 @@ function viewDebts(){
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     return `<tr class="unpaid">
       <td>${j.date||''}</td>
-      <td>${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b></td>
+      <td>${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}</td>
       <td>${j.debtor?`<b>${escapeHtml(j.debtor)}</b>`:'<span style="color:var(--muted)">—</span>'}</td>
-      <td style="max-width:260px;font-size:12px">${itemsStr||''}${j.note?`<div style="color:var(--muted)">${escapeHtml(j.note)}</div>`:''}</td>
+      <td style="max-width:260px;font-size:12px">${itemsStr||''}${noteWithoutPlate(j)?`<div style="color:var(--muted)">${escapeHtml(noteWithoutPlate(j))}</div>`:''}</td>
       <td><b style="color:var(--neg)">${fmtSom(j.debtSom)}</b></td>
       <td style="text-align:right;white-space:nowrap">
         <button class="primary" onclick="openRepay('${j.id}')">${t('repay')}</button>
@@ -3081,7 +3124,7 @@ function openRepay(id){
   modal(`
     <h3>${t('repayTitle')}</h3>
     <div style="margin-bottom:10px">
-      ${jobNoBadge(installNoOf(j))}<b>${escapeHtml(j.carModel||'—')}</b>${j.debtor?' · '+escapeHtml(j.debtor):''}
+      ${jobNoBadge(installNoOf(j))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}${j.debtor?' · '+escapeHtml(j.debtor):''}
       <div style="color:var(--muted);font-size:12px">${j.date||''}</div>
       <div style="color:var(--neg);font-weight:700;margin-top:4px">${t('remaining')}: ${fmtSom(j.debtSom)}</div>
     </div>
@@ -3249,7 +3292,7 @@ function viewApprovals(){
       : '';
     return `<tr>
       <td>${j.date}</td>
-      <td>${jobNoBadge(installNoOf(j, apprNoMap))}<b>${escapeHtml(j.carModel||'—')}</b></td>
+      <td>${jobNoBadge(installNoOf(j, apprNoMap))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}</td>
       <td style="font-size:12px">${items||'—'}</td>
       <td>${moneyChip(j.amountSom, j.amountUsd, j.amountTransfer, j.amountClick, j.amountTerminal)}${repayInfo}</td>
       <td style="text-align:right"><button class="primary" onclick="approveItem('install','${j.id}')">${t('approve')}</button></td>
@@ -3454,9 +3497,9 @@ function viewDashboard(){
         <tbody>
           ${recentJobs.map(j=>{
             const payees = installPayees(j);
-            const no = jobNoBadge(installNoOf(j, dashNoMap));
+            const no = jobNoBadge(installNoOf(j, dashNoMap)) ;
             const carCell = j.carModel
-              ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+              ? `${no}<b>${escapeHtml(j.carModel)}</b>${plateChip(plateOf(j))}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
               : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '<span style="color:var(--muted)">—</span>');
             const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
             const payout = installPayoutTotals(j);
@@ -3684,7 +3727,7 @@ function renderArchiveBody(){
     const payees = installPayees(j);
     const no = jobNoBadge(installNoOf(j, arcNoMap));
     const carCell = j.carModel
-      ? `${no}<b>${escapeHtml(j.carModel)}</b>${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
+      ? `${no}<b>${escapeHtml(j.carModel)}</b>${plateChip(plateOf(j))}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
       : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '—');
     const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
     const payout = installPayoutTotals(j);
@@ -4198,7 +4241,10 @@ function downloadExcelReport(allTime){
     const top = rows.length;
     // The note the user typed on the install goes straight under the car model, so it is
     // read on the car's own line instead of being lost.
-    const carCell = jobNoText(installNoOf(j, xlsNoMap)) + (j.carModel||'—') + (j.note ? '\n📝 ' + j.note : '')
+    const plateTxt = plateOf(j);
+    const carCell = jobNoText(installNoOf(j, xlsNoMap)) + (j.carModel||'—')
+      + (plateTxt ? '\n' + plateTxt : '')
+      + (noteWithoutPlate(j) ? '\n📝 ' + noteWithoutPlate(j) : '')
       + ((Number(j.debtSom)||0) > 0
           ? '\n⚠ Долг: ' + nfRu(j.debtSom) + ' сум' + (j.debtor ? ' — ' + j.debtor : '')
           : '');
@@ -4260,9 +4306,10 @@ function downloadExcelReport(allTime){
     const firstDebtRow = rows.length;
     debtJobs.forEach((j,idx)=>{
       const b = idx%2===1, cs = b?XLS.expCellB:XLS.expCell, ms = b?XLS.expMoneyB:XLS.expMoney;
-      put(pad([S((j.date||'').slice(0,10),cs), S(jobNoText(installNoOf(j, xlsNoMap))+(j.carModel||'—'),cs),
+      put(pad([S((j.date||'').slice(0,10),cs),
+               S(jobNoText(installNoOf(j, xlsNoMap))+(j.carModel||'—')+(plateOf(j)?' '+plateOf(j):''),cs),
                S(j.debtor||'—',cs),
-               S(j.note||'',cs), S('',cs), S('',cs), S(Number(j.debtSom),ms)], cs), 20);
+               S(noteWithoutPlate(j),cs), S('',cs), S('',cs), S(Number(j.debtSom),ms)], cs), 20);
     });
     const rDebtTotal = put(pad([S('ВСЕГО ДОЛГОВ НА СЕГОДНЯ (не входит в выручку):', XLS.totalLabel),
       S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill), S('',XLS.totalFill),
