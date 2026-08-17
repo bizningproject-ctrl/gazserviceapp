@@ -36,10 +36,15 @@ docker compose up -d --build
 curl -s localhost:3000/api/health      # {"ok":true}
 ```
 
-The app recreates an empty database and re-seeds the three default logins
-(`boss/million`, `seller/work`, `accountant/check`).
+The app recreates an empty database and seeds `boss`, `seller`, `accountant` and
+`warehouse` with **generated passwords**, printed once in that first start's output:
 
-**Change those passwords immediately** — see Part 3.
+```bash
+docker compose logs --tail 40 sklad
+```
+
+Copy them out of that log and give them to the owner — they are not stored anywhere else
+in readable form, and no second run will print them again.
 
 ## 4. (Optional) load the owner's data
 
@@ -148,8 +153,10 @@ Search engines cannot index a site behind option A or C anyway.
 
 # PART 3 — Change the default passwords (do this regardless)
 
-`boss/million`, `seller/work` and `accountant/check` are written in the public
-README on GitHub. Anyone who finds the site can log in with them.
+Servers set up before August 2026 were seeded with fixed passwords that used to be printed
+in this public repository. Anyone who finds such a site can log in with them.
 
-In the app: log in as **boss** → **Пользователи** → change the password on each
-account. Do it before anyone uses the site for real work.
+In the app: log in as **boss** → **Пользователи** → change the password on **each** account,
+the seller and the accountant included. Do it before anyone uses the site for real work.
+
+Fresh installations generate their passwords instead, so this applies only to older ones.

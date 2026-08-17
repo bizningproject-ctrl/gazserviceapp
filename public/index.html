@@ -1133,11 +1133,15 @@ function togglePass(){
   else { inp.type='password'; btn.textContent='👁'; btn.style.color='var(--muted)';}
   inp.focus();
 }
-/* Standalone fallback creds (used only when no backend) */
+/* Demo credentials for STANDALONE use only — when index.html is opened as a plain file with
+   no server behind it. They unlock nothing but the data already in that browser. On a real
+   installation the server checks its own accounts, whose passwords live only in its database
+   (hashed) and are generated on first start — never written in this source, which is public. */
 const CREDS = {
   boss: {user:'boss', pass:'million'},
   seller: {user:'seller', pass:'work'},
   accountant: {user:'accountant', pass:'check'},
+  warehouse: {user:'warehouse', pass:'store'},
 };
 async function tryLogin(){
   const u = (document.getElementById('login-user').value||'').trim();
@@ -5002,7 +5006,7 @@ const HELP_CONTENT = {
       Boss controls finances and reports. Seller handles daily operations: sales, purchases, install jobs.
       Data syncs between all devices when the backend server is running.`,
     seller: [
-      {h:'🔑 Login', body:`Username <b>seller</b>, password <b>Work</b> (any case). Click 👁 to see what you typed.`},
+      {h:'🔑 Login', body:`Your login and password come from the boss. Click 👁 to see what you typed.`},
       {h:'💰 Sell (POS)', body:`Click product cards to add to cart. <b>You can change the price per item</b> if customer pays more or less than the list price (small chip shows +/- difference). Customer pays in <b>USD, SOM, or both at once</b> — fill both inputs and the system shows change or how much is missing. Click <b>Complete Sale</b>.`},
       {h:'📦 Products', body:`Add new products with name, price, stock. <b>You don't see the cost price</b> — boss sets that. Click <b>Defective</b> on a product to mark broken units (qty + reason); they're removed from stock and boss is notified.`},
       {h:'🚚 Purchases', body:`When supplier delivers goods, log it here. Pick supplier, click <b>+ Add item</b>, choose product + qty. Stock auto-increases. <b>You don't enter cost</b> — boss has set it on the product. Boss sees the total automatically.`},
@@ -5012,7 +5016,7 @@ const HELP_CONTENT = {
       {h:'👥 Installers', body:`Add the people who install gas equipment. Their weekly / monthly / all-time pay totals appear automatically when you log install jobs.`},
     ],
     boss: [
-      {h:'🔑 Login', body:`Username <b>boss</b>, password <b>Million</b> (any case).`},
+      {h:'🔑 Login', body:`On a fresh installation the server prints generated passwords once, on its first start. Change them and add accounts in <b>Users</b>.`},
       {h:'📊 Dashboard', body:`<b>Revenue</b> = total customers paid you. <b>COGS</b> (Cost of Goods Sold) = cost of items actually sold. <b>Operating Expenses</b> = rent, salary, delivery, etc. <b>Net Profit = Revenue − COGS − Op. Expenses</b>. Cards show both USD and SOM. Recent activity shows last sales, install jobs, defective reports, and stock edits made by seller.`},
       {h:'💵 Setting cost prices', body:`<b>Critical:</b> for COGS / profit math to work, set the <b>Cost price</b> on every product. Products → Edit → Cost price field. When you change it, future purchases use the new rate; past purchase records keep their original cost.`},
       {h:'🚚 Purchases', body:`See full purchase history with cost totals. Filter by supplier. Each purchase auto-creates a 'purchase' expense entry.`},
@@ -5034,7 +5038,7 @@ const HELP_CONTENT = {
   ru: {
     intro: `<b>Gazmetprod Sklad</b> — система склада для автогазового оборудования. Босс контролирует финансы и отчёты. Продавец работает с продажами, закупками, установками. Данные синхронизируются между устройствами при запущенном сервере.`,
     seller: [
-      {h:'🔑 Вход', body:`Логин <b>seller</b>, пароль <b>Work</b> (регистр не важен). Нажмите 👁 чтобы увидеть пароль.`},
+      {h:'🔑 Вход', body:`Логин и пароль вам даёт босс. Нажмите 👁 чтобы увидеть, что набрали.`},
       {h:'💰 Касса', body:`Кликайте по карточкам товаров чтобы добавить в чек. <b>Цену каждого товара можно изменить</b> если клиент платит больше или меньше — чип покажет +/- разницу. Клиент платит в <b>USD, СОМ или сразу в обоих</b> — заполните оба поля, система покажет сдачу или сколько не хватает. <b>Завершить продажу</b>.`},
       {h:'📦 Товары', body:`Добавляйте товары: название, цена, остаток. <b>Закупочную цену вы не видите</b> — её ставит босс. Кнопка <b>Брак</b> у товара — отметить сломанные штуки (кол-во + причина); они уйдут со склада, босс увидит.`},
       {h:'🚚 Закупки', body:`Когда поставщик привёз товар — оформите здесь. Выберите поставщика, нажмите <b>+ Добавить</b>, укажите товар и количество. Склад пополнится. <b>Цену вы не вводите</b> — она уже задана боссом. Сумму босс увидит сам.`},
@@ -5044,7 +5048,7 @@ const HELP_CONTENT = {
       {h:'👥 Установщики', body:`Добавьте мастеров. Их недельные / месячные / общие выплаты считаются автоматически на основе установок.`},
     ],
     boss: [
-      {h:'🔑 Вход', body:`Логин <b>boss</b>, пароль <b>Million</b> (регистр не важен).`},
+      {h:'🔑 Вход', body:`На новой установке сервер один раз, при первом запуске, печатает сгенерированные пароли. Смените их и заводите аккаунты в разделе <b>Пользователи</b>.`},
       {h:'📊 Панель', body:`<b>Выручка</b> = сколько заплатили клиенты. <b>Себ.</b> (себестоимость продаж) = закупочная цена ПРОДАННЫХ товаров. <b>Операционные расходы</b> = аренда, зарплата, доставка и т.д. <b>Чистая прибыль = Выручка − Себ. − Опер. расходы</b>. Внизу — последние продажи, установки, брак и ручные правки остатков продавцом.`},
       {h:'💵 Закупочные цены', body:`<b>Важно:</b> чтобы прибыль считалась правильно, ставьте <b>Закупочную цену</b> у каждого товара. Товары → Редактировать → Закупочная цена. Если изменить — новые закупки идут по новой цене, прошлые сохраняют старую.`},
       {h:'🚚 Закупки', body:`Полная история закупок с суммами. Фильтр по поставщику. Каждая закупка автоматически создаёт запись расхода типа 'закупка'.`},
@@ -5066,7 +5070,7 @@ const HELP_CONTENT = {
   uz: {
     intro: `<b>Gazmetprod Sklad</b> — avtomobil gaz uskunalari ombor tizimi. Boshliq moliyani va hisobotlarni boshqaradi. Sotuvchi sotuv, xarid, o'rnatish bilan ishlaydi. Server ishlasa, ma'lumot barcha qurilmalarda sinxronlanadi.`,
     seller: [
-      {h:'🔑 Kirish', body:`Login <b>seller</b>, parol <b>Work</b> (registr ahamiyatsiz). 👁 tugma — parolni ko'rish.`},
+      {h:'🔑 Kirish', body:`Login va parolni boshliq beradi. 👁 tugma — yozganingizni ko'rish.`},
       {h:"💰 Kassa", body:`Mahsulot kartalariga bosing. <b>Har bir mahsulot narxini o'zgartirish mumkin</b> — chip +/- farqni ko'rsatadi. Mijoz <b>USD, SOM yoki ikkalasi bilan</b> to'laydi — ikkala maydonni to'ldiring, qaytim yoki yetishmayotgan summa ko'rsatiladi. <b>Sotuvni yakunlash</b>.`},
       {h:'📦 Mahsulotlar', body:`Yangi mahsulot qo'shing. <b>Xarid narxini ko'rmaysiz</b> — uni boshliq belgilaydi. <b>Brak</b> tugmasi — buzilgan donalarni belgilash (miqdor + sabab); qoldiqdan ayriladi, boshliq ko'radi.`},
       {h:'🚚 Xaridlar', body:`Yetkazib beruvchi tovar olib kelganda — bu yerda yozing. Yetkazuvchini tanlang, <b>+ Qo'shish</b> tugmasi, mahsulot va miqdor. Qoldiq oshadi. <b>Narxni kiritmaysiz</b> — boshliq belgilab qo'ygan.`},
@@ -5076,7 +5080,7 @@ const HELP_CONTENT = {
       {h:"👥 Ustalar", body:"Ustalarni qo'shing. Haftalik / oylik / umumiy to'lov o'rnatishlar bo'yicha avtomatik hisoblanadi."},
     ],
     boss: [
-      {h:'🔑 Kirish', body:`Login <b>boss</b>, parol <b>Million</b> (registr ahamiyatsiz).`},
+      {h:'🔑 Kirish', body:`Yangi o'rnatishda server birinchi ishga tushganda parollarni bir marta chop etadi. Ularni almashtiring va <b>Foydalanuvchilar</b> bo'limida hisob qo'shing.`},
       {h:'📊 Boshqaruv paneli', body:`<b>Daromad</b> = mijozlar to'lagani. <b>Tannarx</b> (sotilgan tovar tannarxi) = sotilgan mahsulotning xarid narxi. <b>Operatsion xarajatlar</b> = ijara, oylik, yetkazish v.b. <b>Sof foyda = Daromad − Tannarx − Op.xarajat</b>. Pastda — so'nggi sotuvlar, o'rnatishlar, brak va sotuvchi qildiqda qilgan o'zgarishlar.`},
       {h:'💵 Xarid narxlari', body:`<b>Muhim:</b> foyda to'g'ri hisoblanishi uchun har bir mahsulotga <b>Xarid narxini</b> belgilang. Mahsulotlar → Tahrir → Xarid narxi. O'zgartirsangiz — yangi xaridlar yangi narxda, eskilari saqlanadi.`},
       {h:"🚚 Xaridlar", body:"To'liq tarix summalar bilan. Yetkazuvchi bo'yicha filtr. Har bir xarid avtomatik 'xarid' xarajat yozuvi yaratadi."},

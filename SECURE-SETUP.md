@@ -14,11 +14,16 @@ tunnel works would lock everyone out.
 
 ## 0. Change the app passwords FIRST
 
-The default logins (`boss/million`, `seller/work`, `accountant/check`) are printed
-in the public README on GitHub. Until they are changed, every other step here is
+Installations made before August 2026 were seeded with fixed passwords that used to be
+printed in this public repository. They are gone from the code now, but a server that was
+set up back then still has them. Until they are changed, every other step here is
 pointless — an attacker doesn't break in, he logs in.
 
-Site → login as **boss** → **Пользователи** → set new passwords on all three.
+Site → login as **boss** → **Пользователи** → set a new password on **every** account, not
+just the boss: the seller and the accountant see almost everything too.
+
+New installations no longer have this problem: the first start generates a password per
+account and prints it once.
 
 ## 1. Update the code (includes a hardening fix)
 

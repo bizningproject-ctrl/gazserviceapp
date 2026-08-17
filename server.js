@@ -131,13 +131,23 @@ function seedUsers(){
   // was a backdoor: rename the boss account and the next restart quietly re-created
   // 'boss' with the well-known default password.
   if(stmt.allUsers.all().length > 0) return;
-  const ensure = (uname, pwd, role) => {
+  // Passwords are generated, never hard-coded: this source is public, so anything written
+  // here would be a published password. They are printed once, on this first start only —
+  // write them down, then change them in the app.
+  const makePassword = () => crypto.randomBytes(9).toString('base64')
+    .replace(/[+/=]/g, '').slice(0, 10);
+  const ensure = (uname, role) => {
+    const pwd = makePassword();
     stmt.insertUser.run(uname, bcrypt.hashSync(pwd, 10), role);
-    console.log(`  + seeded ${role}/${uname} with password ${pwd}`);
+    console.log(`  + ${role.padEnd(11)} ${uname.padEnd(11)} password: ${pwd}`);
   };
-  ensure('boss',       'million', 'boss');
-  ensure('seller',     'work',    'seller');
-  ensure('accountant', 'check',   'accountant');
+  console.log('\n  First start — accounts created with generated passwords.');
+  console.log('  WRITE THESE DOWN, they are shown only once:\n');
+  ensure('boss',       'boss');
+  ensure('seller',     'seller');
+  ensure('accountant', 'accountant');
+  ensure('warehouse',  'warehouse');
+  console.log('\n  Change them in the app: Пользователи.\n');
 }
 seedUsers();
 
@@ -297,7 +307,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       if(net.family==='IPv4' && !net.internal) console.log(`  Network:  http://${net.address}:${PORT}`);
     }
   }
-  console.log('\nDefault logins:  boss / Million    seller / Work    accountant / Check\n');
+  // No credentials printed here: on a fresh database seedUsers() prints generated ones once,
+  // and on an existing one the passwords are the owner's — this log is not the place for them.
+  console.log('');
 });
 
 function shutdown(sig){

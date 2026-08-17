@@ -34,13 +34,16 @@ Network:  http://192.168.x.x:3000
 
 Leave the terminal running while people are using the app.
 
-## Default logins (case-insensitive)
-| Role   | Username | Password  |
-|--------|----------|-----------|
-| Boss   | `boss`   | `Million` |
-| Seller | `seller` | `Work`    |
+## Logins
 
-Change them by editing the `users` table or via the future user management UI.
+This repository is public, so no password is written in it.
+
+On the **first start with an empty database** the server creates `boss`, `seller`,
+`accountant` and `warehouse` with **generated passwords** and prints them once, in that
+first console output. Write them down and change them straight away in the app:
+**Пользователи** (boss only).
+
+On an existing installation the passwords are the owner's — ask him.
 
 ## Files
 - `server.js` — backend (Express + SQLite)

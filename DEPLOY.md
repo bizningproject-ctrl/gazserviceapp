@@ -66,24 +66,25 @@ above first.
 
 ## Logins
 
-**The owner has changed the login and the password on the live server.** Ask him —
-they are not written down here on purpose.
+**No password is written in this repository — it is public.** Ask the owner for the
+live ones.
 
-The names below are only seeded into a **brand-new, empty** database (a fresh
-install with no users at all), never into a running one:
+A **brand-new, empty** database (a fresh install with no users at all) gets `boss`,
+`seller`, `accountant` and `warehouse` with **generated** passwords, printed once in
+that first start's output:
 
-| Role | User | Password |
-|---|---|---|
-| Boss | `boss` | `million` |
-| Seller | `seller` | `work` |
-| Accountant | `accountant` | `check` |
+```bash
+docker compose logs --tail 40 sklad
+```
 
 Manage accounts in the app: Пользователи (boss only).
 
-> Older builds re-created any missing default account on every restart, which quietly
-> restored `boss` / `million` after the owner renamed it. Fixed — seeding now happens
-> only into a completely empty users table. After updating, look once at Пользователи:
-> if a `boss` account is listed that the owner did not create, delete it.
+> Two things worth checking on a server that has been running since before August 2026.
+> Older builds seeded fixed passwords that used to be printed here, so every account
+> that has not been changed since is guessable — change them all, not only the boss.
+> Older builds also re-created any missing default account on every restart, which
+> quietly restored `boss` after the owner renamed it; that is fixed, but look once at
+> Пользователи and delete a `boss` account the owner did not create.
 
 ## Adding an SSH key for the owner's laptop
 
