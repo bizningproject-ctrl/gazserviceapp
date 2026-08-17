@@ -302,6 +302,16 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     plate:'Plate number', plateHint:'01A123BC',
+    warehouseRole:'Storekeeper', issues:'Stock issued', recon:'Check vs installs',
+    newIssue:'+ Issue from stock', issueTitle:'Parts issued from the warehouse',
+    issuedParts:'Parts issued', issueSaved:'Issued',
+    reconOk:'Matches', reconDiff:'Does not match', reconNoIssue:'Not issued from stock',
+    reconNoInstall:'No install for this car', reconAll:'All', reconProblems:'Problems only',
+    reconInstall:'Boss wrote', reconIssue:'Storekeeper issued', reconWhat:'Difference',
+    reconExtra:'issued but not installed', reconMissing:'installed but not issued',
+    reconQty:'quantity differs', reconNoProblems:'Everything matches 🎉',
+    reconHint:'The system compares the parts the storekeeper issued with the parts written on the car. Cars are matched by plate number.',
+    problems:'Discrepancies',
     incasso:'Cash collection per car', incassoDesc:'Charged once for every car fitted. Counts as an expense and is shown per car in the report. Set 0 to switch it off.',
     incassoSaved:'Cash collection saved', incassoLine:'Cash collection',
     carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
@@ -447,6 +457,16 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
+    warehouseRole:'Кладовщик', issues:'Выдача со склада', recon:'Сверка с установками',
+    newIssue:'+ Выдать со склада', issueTitle:'Что выдано со склада',
+    issuedParts:'Выданные детали', issueSaved:'Выдача записана',
+    reconOk:'Сходится', reconDiff:'Не сходится', reconNoIssue:'Со склада не выдавали',
+    reconNoInstall:'Нет установки на эту машину', reconAll:'Все', reconProblems:'Только расхождения',
+    reconInstall:'Босс записал', reconIssue:'Кладовщик выдал', reconWhat:'Расхождение',
+    reconExtra:'выдано, но не установлено', reconMissing:'установлено, но не выдано',
+    reconQty:'разное количество', reconNoProblems:'Всё сходится 🎉',
+    reconHint:'Система сравнивает детали, выданные кладовщиком, с деталями, записанными на машину. Машины сопоставляются по гос. номеру.',
+    problems:'Расхождения',
     incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину, деньги даёт босс. Входит в расходы и в прибыль, но из «Сдано боссу» не вычитается. В отчёте видна по каждой машине. 0 — не считать.',
     incassoSaved:'Инкасация сохранена', incassoLine:'Инкасация',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
@@ -592,6 +612,16 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     plate:'Davlat raqami', plateHint:'01A123BC',
+    warehouseRole:'Omborchi', issues:'Ombordan berilgan', recon:"O'rnatish bilan solishtirish",
+    newIssue:'+ Ombordan berish', issueTitle:'Ombordan nima berildi',
+    issuedParts:'Berilgan detallar', issueSaved:'Berish yozildi',
+    reconOk:'Mos keladi', reconDiff:'Mos kelmaydi', reconNoIssue:'Ombordan berilmagan',
+    reconNoInstall:"Bu mashinaga o'rnatish yo'q", reconAll:'Hammasi', reconProblems:'Faqat farqlar',
+    reconInstall:'Boss yozgan', reconIssue:'Omborchi bergan', reconWhat:'Farq',
+    reconExtra:"berilgan, lekin o'rnatilmagan", reconMissing:"o'rnatilgan, lekin berilmagan",
+    reconQty:'soni har xil', reconNoProblems:'Hammasi mos 🎉',
+    reconHint:"Tizim omborchi bergan detallarni mashinaga yozilgan detallar bilan solishtiradi. Mashinalar davlat raqami bo'yicha taqqoslanadi.",
+    problems:'Farqlar',
     incasso:"Har mashina uchun inkassatsiya (so'm)", incassoDesc:"Har o'rnatilgan mashina uchun hisoblanadi. Xarajatga kiradi va hisobotda har mashina bo'yicha ko'rsatiladi. 0 — hisoblanmaydi.",
     incassoSaved:'Inkassatsiya saqlandi', incassoLine:'Inkassatsiya',
     carModelOther:'Avto modeli nomi', carModelOtherHint:'masalan: Gentra, Hyundai Accent…',
@@ -699,6 +729,9 @@ const DEFAULT_STATE = {
   expenses: [],   // {id,date,type,amountUsd,amountSom,note,supplierId?,installerId?,purchaseId?}
   installers: [], // {id,name,phone,rateUsd}
   installs: [],   // {id,date,carModel,items,amountUsd,amountSom,note}  — installer payments tracked via expenses
+  // What the storekeeper actually handed out, recorded by him, independently of the install.
+  // The two are compared on the Сверка page; this list never moves stock by itself.
+  issues: [],     // {id,date,plate,carModel,items:[{productId,name,qty}],note,by}
   // Available car models for installs (Uzbekistan-popular)
   // Stored as a free string `carModel` on each install
   // edited via the dropdown defined in CAR_MODELS
@@ -1051,7 +1084,7 @@ const NAV_ALL = [
   {id:'dash', key:'dashboard', fn:()=>viewDashboard(), roles:['boss']},
   {id:'approvals', key:'approvals', fn:()=>viewApprovals(), roles:['accountant']},
   {id:'pos', key:'sell', fn:()=>viewPOS(), roles:['seller']},
-  {id:'products', key:'products', fn:()=>viewProducts(), roles:['boss','seller']},
+  {id:'products', key:'products', fn:()=>viewProducts(), roles:['boss','seller','warehouse']},
   {id:'suppliers', key:'suppliers', fn:()=>viewSuppliers(), roles:['boss','seller']},
   {id:'purchases', key:'purchases', fn:()=>viewPurchases(), roles:['boss','seller']},
   {id:'sales', key:'sales', fn:()=>viewSales(), roles:['boss','seller']},
@@ -1059,7 +1092,9 @@ const NAV_ALL = [
   {id:'installers', key:'installers', fn:()=>viewInstallers(), roles:['boss','seller']},
   {id:'installs', key:'installs', fn:()=>viewInstalls(), roles:['boss','seller']},
   {id:'debts', key:'debts', fn:()=>viewDebts(), roles:['boss','seller']},
-  {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller']},
+  {id:'issues', key:'issues', fn:()=>viewIssues(), roles:['boss','warehouse']},
+  {id:'recon', key:'recon', fn:()=>viewRecon(), roles:['boss','warehouse']},
+  {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller','warehouse']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
   {id:'users', key:'users', fn:()=>viewUsers(), roles:['boss']},
   {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss','accountant']},
@@ -1068,6 +1103,9 @@ let role = sessionStorage.getItem('role') || null;
 const NAV = () => NAV_ALL.filter(n=>n.roles.includes(role));
 const isBoss = () => role==='boss';
 const isAccountant = () => role==='accountant';
+const isWarehouse = () => role==='warehouse';
+// The storekeeper is trusted with both prices — he checks goods in and out.
+const seesCostPrice = () => role==='boss' || role==='warehouse';
 /* Only ПЕРЕЧИСЛЕНИЕ — a bank transfer to the company account — goes to the accountant.
    Click and the card terminal are settled by the bank itself and are not checked by hand,
    so they never queue. Records without an explicit `approved:false` are treated as approved
@@ -1536,7 +1574,7 @@ function productMatches(p, q){
 /* Only the tbody is redrawn while typing, so the search box keeps focus. */
 function renderProductRows(){
   const body = document.getElementById('p-rows'); if(!body) return;
-  const boss = isBoss();
+  const boss = seesCostPrice();     // boss and storekeeper both see what goods cost
   const cols = boss ? 6 : 5;
   const list = state.products.filter(p=>productMatches(p, productSearch));
   const rows = list.map(p=>{
@@ -1563,7 +1601,7 @@ function renderProductRows(){
   if(count) count.textContent = productSearch ? `${list.length} / ${state.products.length}` : String(state.products.length);
 }
 function viewProducts(){
-  const boss = isBoss();
+  const boss = seesCostPrice();
   const headerInfo = boss
     ? `${t('products')}: <b id="p-count">${state.products.length}</b> · ${t('inventoryValue')}: <b>${fmtUsd(inventoryValue())}</b>`
     : `${t('products')}: <b id="p-count">${state.products.length}</b>`;
@@ -1590,7 +1628,7 @@ function inventoryValue(){ return state.products.reduce((s,p)=>s+p.priceUsd*p.st
 function openAddProduct(id){
   const p = id ? state.products.find(x=>x.id===id) : {name:'',sku:'',priceUsd:0,costUsd:0,stock:0,supplierId:'',minStock:0};
   const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}" ${p.supplierId===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('');
-  const costRow = isBoss() ? `
+  const costRow = seesCostPrice() ? `
     <div class="row" style="margin-top:10px">
       <div class="col"><label>${t('costPrice')} (USD)</label><input id="f-cost" type="number" step="0.01" value="${p.costUsd||0}"></div>
       <div class="col"><label>${t('price')} (USD)</label><input id="f-price" type="number" step="0.01" value="${p.priceUsd}"></div>
@@ -1628,7 +1666,7 @@ function saveProduct(id){
     minStock: Number(document.getElementById('f-min').value)||0,
     supplierId: document.getElementById('f-sup').value,
   };
-  if(isBoss()){
+  if(seesCostPrice()){
     obj.costUsd = Number(document.getElementById('f-cost').value)||0;
   } else if(existing){
     obj.costUsd = existing.costUsd||0;
@@ -3110,6 +3148,255 @@ function saveInstall(){
   // The edit can start from the Debts page too — return the user to where they came from.
   if(currentNav === 'debts') viewDebts(); else viewInstalls();
 }
+/* =================== WAREHOUSE: ISSUES + RECONCILIATION =================== */
+/* The storekeeper writes down what physically left the warehouse; the boss writes what was
+   fitted on the car. Both lists are kept separately on purpose — comparing them is the whole
+   point. Cars are matched by plate number, which is why two identical Cobalt on one day can
+   still be told apart. Stock is moved by the install alone; an issue record never touches it,
+   so nothing is deducted twice. */
+const plateKey = s => String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const itemMap = items => {
+  const m = {};
+  (items||[]).forEach(it => {
+    const k = it.productId || ('name:'+String(it.name||'').trim().toLowerCase());
+    if(!m[k]) m[k] = {key:k, name:it.name||'—', qty:0};
+    m[k].qty += Number(it.qty)||0;
+  });
+  return m;
+};
+/* One row per car: what was fitted, what was issued, and exactly how they differ. */
+function reconRows(range){
+  const inR = d => range ? inRange(d, range) : true;
+  const rows = [];
+  const usedIssues = new Set();
+  state.installs.filter(j => inR(j.date)).forEach(j => {
+    const pk = plateKey(plateOf(j));
+    // Match on the plate; without one, fall back to the same car model on the same day.
+    const issue = (state.issues||[]).find(i => !usedIssues.has(i.id) && (
+      (pk && plateKey(i.plate) === pk) ||
+      (!pk && !plateKey(i.plate) && String(i.carModel||'') === String(j.carModel||'')
+           && String(i.date||'').slice(0,10) === String(j.date||'').slice(0,10))));
+    if(issue) usedIssues.add(issue.id);
+    rows.push({install:j, issue, diffs: issue ? diffItems(j.items, issue.items) : null});
+  });
+  // Issues nobody fitted: the storekeeper gave parts out for a car that has no install.
+  (state.issues||[]).filter(i => inR(i.date) && !usedIssues.has(i.id)).forEach(issue => {
+    rows.push({install:null, issue, diffs:null});
+  });
+  return rows.sort((a,b) => String((b.install||b.issue).date||'').localeCompare(String((a.install||a.issue).date||'')));
+}
+function diffItems(installItems, issueItems){
+  const A = itemMap(installItems), B = itemMap(issueItems);
+  const out = [];
+  Object.keys(A).forEach(k => {
+    if(!B[k]) out.push({kind:'missing', name:A[k].name, installed:A[k].qty, issued:0});
+    else if(A[k].qty !== B[k].qty) out.push({kind:'qty', name:A[k].name, installed:A[k].qty, issued:B[k].qty});
+  });
+  Object.keys(B).forEach(k => { if(!A[k]) out.push({kind:'extra', name:B[k].name, installed:0, issued:B[k].qty}); });
+  return out;
+}
+/* Cars fitted before the storekeeper started using the system have no issue record and never
+   will — flagging all of them would bury the real problems. Anything from his first entry
+   onwards is fair game. */
+const firstIssueDay = () => (state.issues||[]).reduce((m,i) => {
+  const d = String(i.date||'').slice(0,10);
+  return d && (!m || d < m) ? d : m;
+}, null);
+function reconStatus(r, since){
+  if(!r.install) return 'noInstall';
+  if(!r.issue){
+    const from = since !== undefined ? since : firstIssueDay();
+    return (from && String(r.install.date||'').slice(0,10) >= from) ? 'noIssue' : 'legacy';
+  }
+  return r.diffs.length ? 'diff' : 'ok';
+}
+const reconProblemCount = range => {
+  const since = firstIssueDay();
+  return reconRows(range).filter(r => ['diff','noIssue','noInstall'].includes(reconStatus(r, since))).length;
+};
+
+let issueDraft = [];      // parts being written on the current issue form
+let editingIssueId = null;
+function viewIssues(){
+  const list = [...(state.issues||[])].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const noMap = installNoMap();
+  // Built once, not per row — otherwise every row re-matches the whole warehouse.
+  const recon = reconRows(null);
+  const since = firstIssueDay();
+  const rows = list.map(i => {
+    // Show straight away whether this issue found its car and whether the parts agree.
+    const r = recon.find(x => x.issue && x.issue.id === i.id);
+    const st = r ? reconStatus(r, since) : 'noInstall';
+    const chip = st==='ok' ? `<span class="chip good">${t('reconOk')}</span>`
+      : st==='diff' ? `<span class="chip bad">${t('reconDiff')}</span>`
+      : `<span class="chip warn">${t('reconNoInstall')}</span>`;
+    const j = r && r.install;
+    return `<tr class="${st!=='ok'?'unpaid':''}">
+      <td>${i.date||''}</td>
+      <td>${j?jobNoBadge(installNoOf(j, noMap)):''}<b>${escapeHtml(i.carModel||'—')}</b>${plateChip(i.plate||'')}</td>
+      <td style="font-size:12px;max-width:280px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ')||'—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${escapeHtml(i.note||'')}</td>
+      <td>${chip}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button onclick="openIssue('${i.id}')">${t('edit')}</button>
+        <button class="danger" onclick="delIssue('${i.id}')" style="margin-left:6px">${t('del')}</button>
+      </td>
+    </tr>`;
+  }).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>${t('issues')}: <b>${list.length}</b></div>
+      <button class="primary" onclick="openIssue()">${t('newIssue')}</button>
+    </div>
+    <div class="card" style="padding:0;margin-top:12px">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('carModel')}</th><th>${t('issuedParts')}</th>
+                 <th>${t('note')}</th><th></th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openIssue(id){
+  const ed = id ? (state.issues||[]).find(x=>x.id===id) : null;
+  editingIssueId = ed ? ed.id : null;
+  issueDraft = ed ? (ed.items||[]).map(x=>({...x})) : [];
+  const carOpts = ['<option value="">—</option>'].concat(
+    CAR_MODELS.filter(m=>m!=='Other').map(m=>`<option value="${escapeHtml(m)}"${ed&&ed.carModel===m?' selected':''}>${escapeHtml(m)}</option>`)).join('');
+  modal(`
+    <h3>${t('issueTitle')}</h3>
+    <div class="row">
+      <div class="col"><label>${t('date')}</label><input id="i-date" type="date" value="${ed?ed.date:today()}"></div>
+      <div class="col"><label>${t('carModel')}</label><select id="i-car">${carOpts}</select></div>
+    </div>
+    <div style="margin-top:8px">
+      <label>${t('plate')}</label>
+      <input id="i-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
+             value="${ed?escapeAttr(ed.plate||''):''}">
+    </div>
+    <label style="margin-top:12px">${t('issuedParts')}</label>
+    <div id="i-items"></div>
+    <div style="margin-top:10px;padding:10px;background:var(--panel2);border-radius:8px">
+      <input id="i-search" placeholder="${t('search')}" oninput="renderIssuePicker()" style="margin-bottom:8px">
+      <div id="i-picker" style="max-height:220px;overflow:auto"></div>
+    </div>
+    <label style="margin-top:10px">${t('note')}</label>
+    <input id="i-note" type="text" value="${ed?escapeAttr(ed.note||''):''}">
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveIssue()">${t('save')}</button>
+    </div>`);
+  renderIssueLines(); renderIssuePicker();
+}
+function renderIssueLines(){
+  const box = document.getElementById('i-items'); if(!box) return;
+  box.innerHTML = issueDraft.length ? issueDraft.map((line,idx)=>{
+    const p = state.products.find(x=>x.id===line.productId);
+    return `<div class="install-line">
+      <div><b>${escapeHtml(line.name || (p?p.name:'—'))}</b>${p?`<br><small style="color:var(--muted)">${t('stockCol')}: ${p.stock}</small>`:''}</div>
+      <div class="qty-ctrl" style="justify-content:center">
+        <input type="number" min="1" step="1" value="${line.qty}" onchange="setIssueQty(${idx},this.value)" style="width:80px;text-align:center">
+      </div>
+      <button class="danger" onclick="removeIssueLine(${idx})" style="padding:4px 10px">×</button>
+    </div>`;
+  }).join('') : `<div style="color:var(--muted);padding:8px;background:var(--panel2);border-radius:6px;text-align:center;font-size:13px">${t('cartEmpty')}</div>`;
+}
+function renderIssuePicker(){
+  const box = document.getElementById('i-picker'); if(!box) return;
+  const q = (document.getElementById('i-search')?.value||'').trim().toLowerCase();
+  const list = state.products.filter(p=>!q || p.name.toLowerCase().includes(q)).slice(0,60);
+  box.innerHTML = list.map(p=>`
+    <div onclick="addIssueLine('${p.id}')" style="padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:8px">
+      <span>${escapeHtml(p.name)}</span>
+      <small style="color:var(--muted)">${t('stockCol')}: ${p.stock}</small>
+    </div>`).join('') || `<div style="color:var(--muted);padding:8px">${t('noData')}</div>`;
+}
+function addIssueLine(productId){
+  const p = state.products.find(x=>x.id===productId); if(!p) return;
+  const line = issueDraft.find(l=>l.productId===productId);
+  if(line) line.qty += 1; else issueDraft.push({productId, name:p.name, qty:1});
+  renderIssueLines();
+}
+function setIssueQty(idx, v){ issueDraft[idx].qty = Math.max(1, Number(v)||1); }
+function removeIssueLine(idx){ issueDraft.splice(idx,1); renderIssueLines(); }
+function saveIssue(){
+  const date = document.getElementById('i-date').value || today();
+  const carModel = document.getElementById('i-car')?.value || '';
+  const plate = (document.getElementById('i-plate')?.value||'').trim().toUpperCase().replace(/\s+/g,' ');
+  const note = (document.getElementById('i-note')?.value||'').trim();
+  if(!issueDraft.length){ alert(t('cartEmpty')); return; }
+  const items = issueDraft.map(l=>({productId:l.productId, name:l.name, qty:Number(l.qty)||0})).filter(l=>l.qty>0);
+  state.issues = state.issues || [];
+  const ed = editingIssueId ? state.issues.find(x=>x.id===editingIssueId) : null;
+  if(ed){ Object.assign(ed, {date, carModel, plate, items, note}); }
+  else { state.issues.push({id:uid(), date, carModel, plate, items, note, by:role}); }
+  editingIssueId = null; issueDraft = [];
+  save(); closeModal(); viewIssues();
+}
+function delIssue(id){
+  if(!confirm(t('confirmDelete'))) return;
+  state.issues = (state.issues||[]).filter(x=>x.id!==id);
+  save(); viewIssues();
+}
+
+let reconOnlyProblems = true;
+function setReconFilter(v){ reconOnlyProblems = v; viewRecon(); }
+function viewRecon(){
+  const since = firstIssueDay();
+  const all = reconRows(null);
+  const isProblem = r => ['diff','noIssue','noInstall'].includes(reconStatus(r, since));
+  const shown = reconOnlyProblems ? all.filter(isProblem) : all;
+  const counts = {ok:0, diff:0, noIssue:0, noInstall:0, legacy:0};
+  all.forEach(r => counts[reconStatus(r, since)]++);
+  const label = {ok:t('reconOk'), diff:t('reconDiff'), noIssue:t('reconNoIssue'),
+                 noInstall:t('reconNoInstall'), legacy:'—'};
+  const chip = {ok:'chip good', diff:'chip bad', noIssue:'chip warn', noInstall:'chip warn', legacy:'chip'};
+  const noMap = installNoMap();
+  const rows = shown.map(r => {
+    const st = reconStatus(r, since);
+    const j = r.install, i = r.issue;
+    const car = j ? `${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}`
+                  : `<b>${escapeHtml(i.carModel||'—')}</b>${plateChip(i.plate||'')}`;
+    const list = items => (items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ') || '—';
+    const diffHtml = st === 'ok' ? `<span style="color:var(--pos)">✓</span>`
+      : st === 'legacy' ? `<span style="color:var(--muted)">—</span>`
+      : st === 'noIssue' ? `<span style="color:var(--hi)">${t('reconNoIssue')}</span>`
+      : st === 'noInstall' ? `<span style="color:var(--hi)">${t('reconNoInstall')}</span>`
+      : r.diffs.map(d => {
+          const what = d.kind==='missing' ? t('reconMissing') : d.kind==='extra' ? t('reconExtra') : t('reconQty');
+          const nums = d.kind==='qty' ? ` (${t('reconInstall')}: ${d.installed}, ${t('reconIssue')}: ${d.issued})` : '';
+          return `<div style="color:var(--neg)"><b>${escapeHtml(d.name)}</b> — ${what}${nums}</div>`;
+        }).join('');
+    return `<tr class="${isProblem(r)?'unpaid':''}">
+      <td>${(j||i).date||''}</td>
+      <td>${car}</td>
+      <td style="font-size:12px;max-width:220px">${j?list(j.items):'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px;max-width:220px">${i?list(i.items):'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:12px">${diffHtml}</td>
+      <td><span class="${chip[st]}">${label[st]}</span></td>
+    </tr>`;
+  }).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="color:var(--muted);font-size:13px;max-width:640px">${t('reconHint')}</div>
+      <div style="display:flex;gap:6px">
+        <button class="${reconOnlyProblems?'primary':''}" onclick="setReconFilter(true)">${t('reconProblems')} (${counts.diff+counts.noIssue+counts.noInstall})</button>
+        <!-- legacy cars (fitted before the storekeeper started) are only in "Все" -->
+        <button class="${reconOnlyProblems?'':'primary'}" onclick="setReconFilter(false)">${t('reconAll')} (${all.length})</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div class="kpi"><div class="l">${t('reconOk')}</div><div class="v" style="color:var(--pos)">${counts.ok}</div></div>
+      <div class="kpi" style="${counts.diff?'border-color:var(--danger-border)':''}"><div class="l">${t('reconDiff')}</div><div class="v" style="color:${counts.diff?'var(--neg)':'inherit'}">${counts.diff}</div></div>
+      <div class="kpi"><div class="l">${t('reconNoIssue')}</div><div class="v" style="color:${counts.noIssue?'var(--hi)':'inherit'}">${counts.noIssue}</div></div>
+      <div class="kpi"><div class="l">${t('reconNoInstall')}</div><div class="v" style="color:${counts.noInstall?'var(--hi)':'inherit'}">${counts.noInstall}</div></div>
+    </div>
+    <div class="card" style="padding:0;margin-top:12px">
+    <table>
+      <thead><tr><th>${t('date')}</th><th>${t('carModel')}</th><th>${t('reconInstall')}</th>
+                 <th>${t('reconIssue')}</th><th>${t('reconWhat')}</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('reconNoProblems')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+
 /* =================== DEBTS =================== */
 function viewDebts(){
   const list = state.installs.filter(j => (Number(j.debtSom)||0) > 0)
@@ -3440,8 +3727,18 @@ function viewDashboard(){
         <span style="color:var(--muted);font-size:12px">${fmtSom(usdToSom(pending.usd))}</span>
       </div>`
     : '';
+  // Warehouse vs installs: anything that does not add up is put in front of the boss.
+  const reconBad = reconProblemCount(null);
+  const reconBanner = reconBad > 0
+    ? `<div class="card" style="background:rgba(217,119,6,0.10);border-color:var(--hi);box-shadow:inset 4px 0 0 0 var(--hi);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;cursor:pointer" onclick="goto('recon')">
+        <div><b style="color:var(--hi)">⚠ ${t('problems')}: ${reconBad}</b>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">${t('reconHint')}</div></div>
+        <span style="color:var(--muted);font-size:12px">${t('recon')} →</span>
+      </div>`
+    : '';
   V().innerHTML = `
     ${pendingBanner}
+    ${reconBanner}
     <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px">
       <button onclick="goto('archive')">📅 ${t('excelByPeriod')}</button>
       <button class="primary" onclick="downloadExcelReport(true)">📊 ${t('downloadExcel')} — ${t('allTime')}</button>
@@ -4942,7 +5239,9 @@ async function viewUsers(){
   const rows = users.map(u => `
     <tr>
       <td>${escapeHtml(u.username)}</td>
-      <td><span class="pill ${u.role==='boss'?'pos':''}">${u.role==='boss'?t('bossRole'):u.role==='accountant'?t('accountantRole'):t('sellerRole')}</span></td>
+      <td><span class="pill ${u.role==='boss'?'pos':''}">${
+        u.role==='boss' ? t('bossRole') : u.role==='accountant' ? t('accountantRole')
+        : u.role==='warehouse' ? t('warehouseRole') : t('sellerRole')}</span></td>
       <td style="text-align:right;white-space:nowrap">
         <button onclick="openChangePassword(${u.id}, '${escapeAttr(u.username)}')">${t('changePassword')}</button>
         <button class="danger" onclick="deleteUser(${u.id}, '${escapeAttr(u.username)}')">${t('del')}</button>
@@ -4974,6 +5273,7 @@ function openAddUser(){
       <option value="seller">${t('sellerRole')}</option>
       <option value="boss">${t('bossRole')}</option>
       <option value="accountant">${t('accountantRole')}</option>
+      <option value="warehouse">${t('warehouseRole')}</option>
     </select>
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button onclick="closeModal()">${t('cancel')}</button>

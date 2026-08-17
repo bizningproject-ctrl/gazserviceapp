@@ -36,7 +36,7 @@ db.exec(`
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     username      TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant'))
+    role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant','warehouse'))
   );
   CREATE TABLE IF NOT EXISTS kv (
     key   TEXT PRIMARY KEY,
@@ -45,20 +45,21 @@ db.exec(`
   );
 `);
 
-// Older databases were created with CHECK(role IN ('boss','seller')) — extend to allow 'accountant'.
+// Older databases were created with a narrower CHECK — probe with the newest role and
+// rebuild the table when it is rejected, so 'accountant' and 'warehouse' both become valid.
 (function migrateRoleConstraint(){
   try {
     db.prepare("INSERT INTO users (username,password_hash,role) VALUES (?,?,?)")
-      .run('__role_check_probe__', 'x', 'accountant');
+      .run('__role_check_probe__', 'x', 'warehouse');
     db.prepare("DELETE FROM users WHERE username = ?").run('__role_check_probe__');
   } catch(e){
-    console.log('Migrating users CHECK to allow accountant…');
+    console.log('Migrating users CHECK to allow warehouse…');
     db.exec(`
       CREATE TABLE users_new (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         username      TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant'))
+        role          TEXT NOT NULL CHECK(role IN ('boss','seller','accountant','warehouse'))
       );
       INSERT INTO users_new (id, username, password_hash, role)
         SELECT id, username, password_hash, role FROM users;
@@ -259,7 +260,7 @@ app.get('/api/users', authMW, requireBoss, (req, res) => {
 });
 app.post('/api/users', authMW, requireBoss, (req, res) => {
   const {username, password, role} = req.body || {};
-  if(!username || !password || !['boss','seller','accountant'].includes(role))
+  if(!username || !password || !['boss','seller','accountant','warehouse'].includes(role))
     return res.status(400).json({error:'bad payload'});
   const uname = String(username).toLowerCase().trim();
   if(stmt.userByName.get(uname)) return res.status(400).json({error:'username exists'});
