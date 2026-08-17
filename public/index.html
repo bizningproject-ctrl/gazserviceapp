@@ -447,7 +447,7 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
-    incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину. Входит в расходы и показывается по каждой машине в отчёте. 0 — не считать.',
+    incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину, деньги даёт босс. Входит в расходы и в прибыль, но из «Сдано боссу» не вычитается. В отчёте видна по каждой машине. 0 — не считать.',
     incassoSaved:'Инкасация сохранена', incassoLine:'Инкасация',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
     carModelRequired:'Впишите название модели авто',
@@ -3967,7 +3967,7 @@ function buildXlsxBlob(sheets){
   const L = 'horizontal="left" vertical="center"', R = 'horizontal="right" vertical="center"';
   const M = 164;
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="22">${
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0"/></numFmts><fonts count="23">${
     F(11,0,null)                 /* 0  Calibri default    */}${
     F(16,1,'1B365D')             /* 1  report title       */}${
     F(9,0,'555555')              /* 2  subtitle           */}${
@@ -3989,7 +3989,8 @@ function buildXlsxBlob(sheets){
     F(8.5,1,'C53030')            /* 18 total red          */}${
     F(9,1,'C53030')              /* 19 total red large    */}${
     F(8.5,1,'1E7E34')            /* 20 profit green       */}${
-    F(9,1,'1E7E34')              /* 21 profit green total */
+    F(9,1,'1E7E34')              /* 21 profit green total */}${
+    F(8.5,1,'D97706')            /* 22 incasso amber      */
   }</fonts><fills count="9"><fill><patternFill/></fill><fill><patternFill patternType="gray125"/></fill>${
     SOLID('F7FAFC')}${SOLID('EBF8FF')}${SOLID('FEF3C7')}${SOLID('1B365D')}${SOLID('F9FBFC')}${SOLID('F0F4F8')}${SOLID('2B547E')
   }</fills><borders count="8">${
@@ -4002,7 +4003,7 @@ function buildXlsxBlob(sheets){
     BORDER(1,1,1,'double')       /* 6 grand total         */}${
     `<border><left/><right/><top style="medium">${NAVY}</top><bottom style="medium">${NAVY}</bottom><diagonal/></border>`
                                  /* 7 day separator band  */
-  }</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="48">${
+  }</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="50">${
     XF(0,0,0)          /*  0 default        */}${XF(1,0,0,0,C)     /*  1 title          */}${
     XF(2,0,0,0,C)      /*  2 subtitle       */}${XF(3,2,1,0,C)     /*  3 kpi label      */}${
     XF(0,2,1)          /*  4 kpi fill grey  */}${XF(3,3,1,0,C)     /*  5 kpi label blue */}${
@@ -4026,7 +4027,8 @@ function buildXlsxBlob(sheets){
     XF(16,0,1,M,R)     /* 40 exp money      */}${XF(12,6,1,0,CW)   /* 41 exp banded     */}${
     XF(16,6,1,M,R)     /* 42 exp money band */}${XF(19,7,6,M,R)    /* 43 total expenses */}${
     XF(20,0,1,M,R)     /* 44 profit green   */}${XF(20,6,1,M,R)    /* 45 profit green b */}${
-    XF(21,7,6,M,R)     /* 46 profit total   */}${XF(17,3,7,0,L)    /* 47 day band       */
+    XF(21,7,6,M,R)     /* 46 profit total   */}${XF(17,3,7,0,L)    /* 47 day band       */}${
+    XF(22,4,1,0,L)     /* 48 incasso label  */}${XF(22,4,1,M,R)    /* 49 incasso money  */
   }</cellXfs></styleSheet>`;
   const files = [
     {name:'[Content_Types].xml', xml:contentTypes},
@@ -4078,6 +4080,7 @@ function downloadExcelReport(allTime){
     totalLabel:33, totalFill:34, totalCost:35, totalPayout:36, totalRevenue:37,
     headBlue:38, expCell:39, expMoney:40, expCellB:41, expMoneyB:42, totalExpense:43,
     profit:44, profitB:45, profitTotal:46, dayBand:47,
+    incassoPart:48, incassoMoney:49,     // amber, so it never reads as a fitted part
   };
   const S = (v,s)=>({v,s});
   const Fx = (f,s,v)=>({f,s,v});    // v = computed value, cached so blank cells never appear
@@ -4166,7 +4169,7 @@ function downloadExcelReport(allTime){
   const gotCashless = gotClick + gotTerminal + gotTransfer;
   const rCap = put(pad([
     S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
-    S('Мастера + прочее + закупки, вписанные в Расходы', XLS.capGrey),
+    S('Мастера + прочее + закупки из Расходов + инкасация', XLS.capGrey),
     S('Наличные − расходы наличными · Click, терминал и перевод НЕ входят', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
     S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
@@ -4206,7 +4209,7 @@ function downloadExcelReport(allTime){
   mergeRow(put([S('1. Раздельный учёт себестоимости деталей, оплаты установщиков и выручки', XLS.section)]), 0, COLS-1);
   const COST_COL = 2, SPEND_COL = 5, PROFIT_COL = 6;
   put(pad([S('Модель авто / заметка',XLS.headNavy), S('Установленный деталь / компонент',XLS.headNavy),
-           S('Себестоимость детали (сум)',XLS.headNavy), S('Выплаты установщикам + инкасация',XLS.headNavy),
+           S('Себестоимость детали · инкасация (сум)',XLS.headNavy), S('Выплаты установщикам (кто / сколько)',XLS.headNavy),
            S('Получено от клиента',XLS.headNavy),
            S('Расходы: детали + мастера + инкасация (сум)',XLS.headNavy), S('ЧИСТАЯ ПРИБЫЛЬ (сум)',XLS.headNavy)],
           XLS.headNavy), 30);
@@ -4258,9 +4261,6 @@ function downloadExcelReport(allTime){
       return nameOf(a.installerId) + ' — ' + (m.join(' + ') || 'не выплачено');
     });
     if(!payoutLines.length) payoutLines.push('установщик не назначен');
-    // The collection fee is money paid out for this very car, so it belongs on the car's own
-    // line — that is what makes it visible per car instead of only in a lump sum below.
-    if(incassoPerCar() > 0) payoutLines.push('Инкасация — ' + nfRu(incassoPerCar()) + ' сум');
     const payoutTxt = payoutLines.join('\n');
     // Everything in this section is reported in som — the currency the shop actually works in.
     const A = amountsInPeriod(j);
@@ -4284,10 +4284,13 @@ function downloadExcelReport(allTime){
     // The payout cell is merged down the whole job; give the first row extra height when the
     // installer list needs more room than the part rows provide (e.g. 3 installers, 1 part).
     const tallest = Math.max(visualLines(payoutTxt, 24), visualLines(carCell, 17));
-    const shortfall = Math.max(0, tallest*15 - parts.length*20);
+    // Инкасация rides in the parts column, one amber row under the car's parts — it is a
+    // cost of the car, not a payout to an installer, so it must not sit in the payout cell.
+    const hasInc = inc > 0;
+    const shortfall = Math.max(0, tallest*15 - (parts.length + (hasInc?1:0))*20);
     parts.forEach((it, k) => {
-      const last = k === parts.length-1;
-      const carry = parts.length>1 ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
+      const last = (k === parts.length-1) && !hasInc;
+      const carry = (parts.length>1 || hasInc) ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
         ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S(payoutTxt,st.payout), S(moneyTextRu(A.usd,A.som,A.transfer,A.click,A.terminal),st.cell),
@@ -4295,6 +4298,10 @@ function downloadExcelReport(allTime){
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
     });
+    if(hasInc){
+      put([S('',XLS.mergeEnd), S('Инкасация',XLS.incassoPart), S(inc,XLS.incassoMoney),
+           S('',XLS.mergeEnd), S('',XLS.mergeEnd), S('',XLS.mergeEnd), S('',XLS.mergeEnd)], 20);
+    }
     const bottom = rows.length-1;
     [0,3,4,5,6].forEach(c => mergeCol(c, top, bottom));
   }
@@ -4308,8 +4315,8 @@ function downloadExcelReport(allTime){
     const sum = (c,v) => Fx(`SUM(${at(firstJobRow,c)}:${at(lastJobRow,c)})`, 0, v);
     rCostTotal = rSpendTotal = rProfitTotal = put(pad([
       S('ИТОГО ПО УСТАНОВКАМ:', XLS.totalLabel), S('', XLS.totalFill),
-      {...sum(COST_COL, totCost), s:XLS.totalCost},
-      S(totPay + totIncasso, XLS.totalExpense), S('', XLS.totalFill),
+      {...sum(COST_COL, totCost + totIncasso), s:XLS.totalCost},
+      S(totPay, XLS.totalExpense), S('', XLS.totalFill),
       {...sum(SPEND_COL, totSpend), s:XLS.totalExpense},
       {...sum(PROFIT_COL, totProfit), s:XLS.profitTotal}], XLS.totalFill), 22);
     mergeRow(rCostTotal, 0, 1);
@@ -4469,10 +4476,12 @@ function downloadExcelReport(allTime){
     expLines.unshift({
       date: '',
       article: 'Инкасация',
-      category: d.installs.length + ' авто × ' + nfRu(incassoPerCar()) + ' сум',
-      form: nfRu(incassoSom) + ' сум',
+      category: d.installs.length + ' авто × ' + nfRu(incassoPerCar()) + ' сум · платит босс',
+      form: 'платит босс',
       total: incassoSom,
-      cash: incassoSom,
+      // The boss pays the collection himself, so this money never leaves the till and must
+      // not come off "СДАНО БОССУ" — it still counts as a расход and against the profit.
+      cash: 0,
     });
   }
 
@@ -4546,7 +4555,10 @@ function downloadExcelReport(allTime){
   // counter. The parts sold cost money as well, hence the sales-side себестоимость.
   const salesRevenueSom = d.sales.reduce((s,x)=>s+usdToSom(x.totalUsd||0), 0);
   const salesCostSom    = usdToSom(d.sales.reduce((s,x)=>s+saleCOGS(x), 0));
-  const costRef = rCostTotal!=null && salesCostSom === 0 ? at(rCostTotal,COST_COL) : null;
+  // "ПОСТАВЩИКАМ" is the cost of the parts alone, so it can only point at the column total
+  // while that total is nothing but parts — no инкасация row, no sold-goods cost.
+  const costRef = rCostTotal!=null && salesCostSom === 0 && totIncasso === 0
+    ? at(rCostTotal,COST_COL) : null;
   // Выручка is no longer its own column — it is расходы + прибыль, which is the same number,
   // plus the shop-sales block when there is one.
   const revRef  = rSpendTotal!=null
