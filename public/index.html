@@ -302,8 +302,10 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     plate:'Plate number', plateHint:'01A123BC',
+    extrasDefault:'Standard "other materials" per car (som)',
+    extrasDefaultDesc:'Pre-fills the field on a new install. Change it on the car itself whenever it differs — this is only the starting number. 0 leaves the field empty.',
     extras:'Other materials (som)', extrasNote:'What was used',
-    extrasHint:'Screws, lamps, tape and the like — small things not kept in stock. Counted as a cost of this car.',
+    extrasHint:'Screws, lamps, tape and the like — small things not kept in stock. Counted as a cost of this car, so profit on it goes down. Do not write the same money into Расходы as well, or it counts twice.',
     extrasLine:'Other materials',
     approvedHistory:'Already approved', approvedWhen:'Approved', noApprovedYet:'Nothing approved yet',
     showingLast:'last 200 shown',
@@ -462,8 +464,10 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
+    extrasDefault:'Прочие материалы — сумма по умолчанию (сум)',
+    extrasDefaultDesc:'Подставляется в новую установку. На конкретной машине сумму можно изменить — это только начальное значение. 0 — поле будет пустым.',
     extras:'Прочие материалы (сум)', extrasNote:'Что ушло',
-    extrasHint:'Саморезы, лампочки, изолента и прочая мелочь, которой нет на складе. Считается расходом на эту машину.',
+    extrasHint:'Саморезы, лампочки, изолента и прочая мелочь, которой нет на складе. Идёт в себестоимость этой машины — прибыль по ней уменьшится. Не вписывайте те же деньги ещё и в Расходы, иначе посчитается дважды.',
     extrasLine:'Прочие материалы',
     approvedHistory:'Уже утверждено', approvedWhen:'Утверждено', noApprovedYet:'Пока ничего не утверждено',
     showingLast:'показаны последние 200',
@@ -622,8 +626,10 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     plate:'Davlat raqami', plateHint:'01A123BC',
+    extrasDefault:"Boshqa materiallar — standart summa (so'm)",
+    extrasDefaultDesc:"Yangi o'rnatishga o'zi qo'yiladi. Har mashinada summani o'zgartirish mumkin — bu faqat boshlang'ich qiymat. 0 — maydon bo'sh qoladi.",
     extras:"Boshqa materiallar (so'm)", extrasNote:'Nima ishlatildi',
-    extrasHint:"Sarupka, lampochka, izolenta va shunga o'xshash maydalar — omborda yo'q. Shu mashina xarajati sifatida hisoblanadi.",
+    extrasHint:"Sarupka, lampochka, izolenta va shunga o'xshash maydalar — omborda yo'q. Shu mashina tannarxiga kiradi, foydasi kamayadi. Xuddi shu pulni Xarajatlarga ham yozmang — ikki marta hisoblanadi.",
     extrasLine:'Boshqa materiallar',
     approvedHistory:'Tasdiqlangan', approvedWhen:'Tasdiqlandi', noApprovedYet:'Hali hech nima tasdiqlanmagan',
     showingLast:"oxirgi 200 ta ko'rsatilgan",
@@ -738,6 +744,9 @@ const DEFAULT_STATE = {
   // Cash-collection fee charged once per fitted car (сум). Counted as an expense and shown
   // on every car line in the report; 0 turns it off.
   incassoPerCar: 300000,
+  // Standard amount of small materials per car (screws, a lamp…). Only pre-fills the install
+  // form — the real figure is whatever is saved on the car, and it can be edited there.
+  extraDefaultSom: 0,
   products: [],   // {id,name,sku,priceUsd,costUsd,stock,supplierId,minStock}
   suppliers: [],  // {id,name,phone,note}
   sales: [],      // {id,date,items,paidUsd,paidSom,totalUsd,cashier}
@@ -992,6 +1001,8 @@ function updateSomHint(inputId, hintId){
 // Инкасация: one fixed fee per fitted car. Kept as a rate in settings rather than typed as
 // an expense per car, because it is the same for every car and nobody wants to enter it 79 times.
 const incassoPerCar = () => Math.max(0, Number(state.incassoPerCar) || 0);
+// Suggested materials amount for a NEW install; every car keeps whatever was actually saved.
+const extraDefaultSom = () => Math.max(0, Number(state.extraDefaultSom) || 0);
 const incassoFor = list => (list||[]).length * incassoPerCar();
 const usdToSom = v => (Number(v)||0) * state.rate;
 const somToUsd = v => (Number(v)||0) / state.rate;
@@ -2965,7 +2976,8 @@ function openInstall(id){
     `:`<div style="color:var(--muted);font-size:12px">${t('addProductFirst')}</div>`}
     <div class="row" style="margin-top:10px">
       <div class="col"><label>${t('extras')}</label>
-        <input id="j-extra" type="number" step="1000" min="0" value="${editing?(editing.extraSom||0):0}"
+        <input id="j-extra" type="number" step="1000" min="0"
+               value="${editing ? (editing.extraSom||0) : extraDefaultSom()}"
                oninput="updateSomHint('j-extra','j-extra-hint')">
         <small id="j-extra-hint" style="color:var(--muted);font-size:11px"></small></div>
       <div class="col"><label>${t('extrasNote')}</label>
@@ -5180,6 +5192,19 @@ function viewSettings(){
       </div>
     </div>`;
   if(!boss){ V().innerHTML = incassoCard; return; }
+  // Boss only: the standard materials amount. It just pre-fills the install form, so it is a
+  // convenience for whoever writes the cars up — not part of the accountant's job.
+  const extrasCard = `
+    <div class="card">
+      <h3 style="margin-top:0">${t('extrasDefault')}</h3>
+      <p style="color:var(--muted)">${t('extrasDefaultDesc')}</p>
+      <div class="row">
+        <div class="col" style="max-width:240px">
+          <input id="set-extra" type="number" step="1000" min="0" value="${extraDefaultSom()}">
+        </div>
+        <div style="align-self:flex-end"><button class="primary" onclick="saveExtraDefault()">${t('save')}</button></div>
+      </div>
+    </div>`;
   V().innerHTML = `
     <div class="card">
       <h3 style="margin-top:0">${t('exchangeRate')}</h3>
@@ -5191,6 +5216,7 @@ function viewSettings(){
       <div id="rate-preview" style="margin-top:14px"></div>
     </div>
     ${incassoCard}
+    ${extrasCard}
     <div class="card">
       <h3 style="margin-top:0">${t('dataBackup')}</h3>
       <p style="color:var(--muted)">${t('backupDesc')}</p>
@@ -5238,6 +5264,13 @@ function renderRatePreview(){
       <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${profit>=0?'#7ce38b':'#ffb4b4'}">${fmtUsd(profit)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(profit)}</div></div>
       <div class="kpi"><div class="l">${t('inventoryValue')}</div><div class="v">${fmtUsd(inv)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(inv)}</div></div>
     </div>`;
+}
+function saveExtraDefault(){
+  const v = Number(document.getElementById('set-extra')?.value);
+  if(!(v >= 0)){ alert(t('invalidAmount')); return; }
+  state.extraDefaultSom = Math.round(v);
+  save();
+  viewSettings();
 }
 function saveIncasso(){
   const v = Number(document.getElementById('set-incasso')?.value);
