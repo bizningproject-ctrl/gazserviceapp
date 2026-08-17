@@ -302,6 +302,9 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     plate:'Plate number', plateHint:'01A123BC',
+    extras:'Other materials (som)', extrasNote:'What was used',
+    extrasHint:'Screws, lamps, tape and the like — small things not kept in stock. Counted as a cost of this car.',
+    extrasLine:'Other materials',
     approvedHistory:'Already approved', approvedWhen:'Approved', noApprovedYet:'Nothing approved yet',
     showingLast:'last 200 shown',
     warehouseRole:'Storekeeper', issues:'Stock issued', recon:'Check vs installs',
@@ -459,6 +462,9 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
+    extras:'Прочие материалы (сум)', extrasNote:'Что ушло',
+    extrasHint:'Саморезы, лампочки, изолента и прочая мелочь, которой нет на складе. Считается расходом на эту машину.',
+    extrasLine:'Прочие материалы',
     approvedHistory:'Уже утверждено', approvedWhen:'Утверждено', noApprovedYet:'Пока ничего не утверждено',
     showingLast:'показаны последние 200',
     warehouseRole:'Кладовщик', issues:'Выдача со склада', recon:'Сверка с установками',
@@ -616,6 +622,9 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     plate:'Davlat raqami', plateHint:'01A123BC',
+    extras:"Boshqa materiallar (so'm)", extrasNote:'Nima ishlatildi',
+    extrasHint:"Sarupka, lampochka, izolenta va shunga o'xshash maydalar — omborda yo'q. Shu mashina xarajati sifatida hisoblanadi.",
+    extrasLine:'Boshqa materiallar',
     approvedHistory:'Tasdiqlangan', approvedWhen:'Tasdiqlandi', noApprovedYet:'Hali hech nima tasdiqlanmagan',
     showingLast:"oxirgi 200 ta ko'rsatilgan",
     warehouseRole:'Omborchi', issues:'Ombordan berilgan', recon:"O'rnatish bilan solishtirish",
@@ -2954,6 +2963,15 @@ function openInstall(id){
         <div id="j-picker" class="install-picker"></div>
       </div>
     `:`<div style="color:var(--muted);font-size:12px">${t('addProductFirst')}</div>`}
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('extras')}</label>
+        <input id="j-extra" type="number" step="1000" min="0" value="${editing?(editing.extraSom||0):0}"
+               oninput="updateSomHint('j-extra','j-extra-hint')">
+        <small id="j-extra-hint" style="color:var(--muted);font-size:11px"></small></div>
+      <div class="col"><label>${t('extrasNote')}</label>
+        <input id="j-extra-note" type="text" placeholder="самарезы, лампочка…" value="${editing?escapeAttr(editing.extraNote||''):''}"></div>
+    </div>
+    <small style="color:var(--muted);font-size:11px;display:block;margin-top:4px">${t('extrasHint')}</small>
     <div class="row" style="margin-top:12px">
       <div class="col"><label>${t('chargedSom')}</label><input id="j-som" type="number" step="1" value="${editing?(editing.amountSom||0):0}" oninput="updateSomHint('j-som','j-som-hint')"><small id="j-som-hint" style="color:var(--muted);font-size:11px"></small></div>
       <div class="col"><label>${t('chargedUsd')}</label><input id="j-usd" type="number" step="0.01" value="${editing?(editing.amountUsd||0):0}"></div>
@@ -3103,6 +3121,9 @@ function saveInstall(){
   }
   // Stored upper-case and space-normalised, so "01a 123 bc" and "01A123BC" match when searched.
   const plate = (document.getElementById('j-plate')?.value || '').trim().toUpperCase().replace(/\s+/g,' ');
+  // Small materials that are not kept in stock — screws, a lamp, tape. A cost of this car.
+  const extraSom = Math.max(0, Number(document.getElementById('j-extra')?.value)||0);
+  const extraNote = (document.getElementById('j-extra-note')?.value||'').trim();
   const amountUsd = Number(document.getElementById('j-usd').value)||0;
   const amountSom = Number(document.getElementById('j-som').value)||0;
   const amountTransfer = Number(document.getElementById('j-trans')?.value)||0;
@@ -3131,6 +3152,8 @@ function saveInstall(){
     editing.date = date;
     editing.carModel = carModel;
     editing.plate = plate;
+    editing.extraSom = extraSom;
+    editing.extraNote = extraNote;
     editing.items = items;
     editing.amountUsd = amountUsd;
     editing.amountSom = amountSom;
@@ -3144,7 +3167,8 @@ function saveInstall(){
     editing.approved = !(amountTransfer > 0);
     if(editing.approved){ delete editing.approvedBy; delete editing.approvedAt; }
   } else {
-    const job = {id:uid(), date, carModel, plate, items, amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
+    const job = {id:uid(), date, carModel, plate, items, extraSom, extraNote,
+                 amountUsd, amountSom, amountTransfer, amountClick, amountTerminal,
                  debtSom, debtor, note,
                  approved: !(amountTransfer > 0)};
     state.installs.push(job);
@@ -3725,8 +3749,11 @@ function itemsCOGS(items){
 }
 const saleCOGS = sale => itemsCOGS(sale.items);
 // Parts fitted during an install job cost money too — count them, or an installation-only
-// shop shows zero cost of goods and its whole revenue as profit.
-const installCOGS = job => itemsCOGS(job.items);
+// shop shows zero cost of goods and its whole revenue as profit. The small materials typed
+// on the job (screws, a lamp, tape — never kept in stock) are part of that cost, so they
+// ride along here and reach the dashboard, the archive and the report through this one door.
+const installExtraSom = job => Math.max(0, Number(job && job.extraSom)||0);
+const installCOGS = job => itemsCOGS(job.items) + somToUsd(installExtraSom(job));
 const periodCOGS = (sales, installs) =>
   (sales||[]).reduce((s,x)=>s+saleCOGS(x),0) + (installs||[]).reduce((s,j)=>s+installCOGS(j),0);
 function viewDashboard(){
@@ -4675,11 +4702,16 @@ function downloadExcelReport(allTime){
     const tallest = Math.max(visualLines(payoutTxt, 24), visualLines(carCell, 17));
     // Инкасация rides in the parts column, one amber row under the car's parts — it is a
     // cost of the car, not a payout to an installer, so it must not sit in the payout cell.
+    // The small materials get their own row too, in the ordinary part style: they ARE
+    // material, and partsSom already counts them, so the column still adds up.
+    const extraSom = installExtraSom(j);
+    const hasExtra = extraSom > 0;
     const hasInc = inc > 0;
-    const shortfall = Math.max(0, tallest*15 - (parts.length + (hasInc?1:0))*20);
+    const tailRows = (hasExtra?1:0) + (hasInc?1:0);
+    const shortfall = Math.max(0, tallest*15 - (parts.length + tailRows)*20);
     parts.forEach((it, k) => {
-      const last = (k === parts.length-1) && !hasInc;
-      const carry = (parts.length>1 || hasInc) ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
+      const last = (k === parts.length-1) && !tailRows;
+      const carry = (parts.length>1 || tailRows) ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
         ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S(payoutTxt,st.payout),
@@ -4694,6 +4726,11 @@ function downloadExcelReport(allTime){
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
     });
+    if(hasExtra){
+      const carry = hasInc ? XLS.mergeMid : XLS.mergeEnd;
+      put([S('',carry), S('Прочие материалы' + (j.extraNote ? ': ' + j.extraNote : ''), st.part),
+           S(extraSom, st.cost), S('',carry), S('',carry), S('',carry), S('',carry)], 20);
+    }
     if(hasInc){
       put([S('',XLS.mergeEnd), S('Инкасация',XLS.incassoPart), S(inc,XLS.incassoMoney),
            S('',XLS.mergeEnd), S('',XLS.mergeEnd), S('',XLS.mergeEnd), S('',XLS.mergeEnd)], 20);
