@@ -1097,7 +1097,10 @@ const NAV_ALL = [
   {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller','warehouse']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
   {id:'users', key:'users', fn:()=>viewUsers(), roles:['boss']},
-  {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss','accountant']},
+  // Settings holds the rate preview (revenue, profit, stock value), the full JSON export and
+  // the wipe button — none of which is the accountant's business. He gets Approvals, nothing
+  // else: his job is to confirm transfers, not to look at what the shop earns.
+  {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss']},
 ];
 let role = sessionStorage.getItem('role') || null;
 const NAV = () => NAV_ALL.filter(n=>n.roles.includes(role));
