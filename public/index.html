@@ -3243,7 +3243,10 @@ function viewIssues(){
     return `<tr class="${st!=='ok'?'unpaid':''}">
       <td>${i.date||''}</td>
       <td>${j?jobNoBadge(installNoOf(j, noMap)):''}<b>${escapeHtml(i.carModel||'—')}</b>${plateChip(i.plate||'')}</td>
-      <td style="font-size:12px;max-width:280px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ')||'—'}</td>
+      <td style="font-size:12px;max-width:280px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ')||'—'}
+        ${(i.items||[]).length ? `<div style="color:var(--accent);font-weight:700;margin-top:2px">${
+          (i.items||[]).reduce((s,x)=>s+(Number(x.qty)||0),0)} ${t('pcs')}
+          <span style="color:var(--muted);font-weight:400">· ${(i.items||[]).length} ${t('kinds')}</span></div>` : ''}</td>
       <td style="font-size:12px;color:var(--muted)">${escapeHtml(i.note||'')}</td>
       <td>${chip}</td>
       <td style="text-align:right;white-space:nowrap">
@@ -3297,7 +3300,11 @@ function openIssue(id){
 }
 function renderIssueLines(){
   const box = document.getElementById('i-items'); if(!box) return;
-  box.innerHTML = issueDraft.length ? issueDraft.map((line,idx)=>{
+  if(!issueDraft.length){
+    box.innerHTML = `<div style="color:var(--muted);padding:8px;background:var(--panel2);border-radius:6px;text-align:center;font-size:13px">${t('cartEmpty')}</div>`;
+    return;
+  }
+  const lines = issueDraft.map((line,idx)=>{
     const p = state.products.find(x=>x.id===line.productId);
     return `<div class="install-line">
       <div><b>${escapeHtml(line.name || (p?p.name:'—'))}</b>${p?`<br><small style="color:var(--muted)">${t('stockCol')}: ${p.stock}</small>`:''}</div>
@@ -3306,7 +3313,15 @@ function renderIssueLines(){
       </div>
       <button class="danger" onclick="removeIssueLine(${idx})" style="padding:4px 10px">×</button>
     </div>`;
-  }).join('') : `<div style="color:var(--muted);padding:8px;background:var(--panel2);border-radius:6px;text-align:center;font-size:13px">${t('cartEmpty')}</div>`;
+  }).join('');
+  // How much is going out: pieces first, then how many different products, same as the install form.
+  const pieces = issueDraft.reduce((s,l)=>s+(Number(l.qty)||0), 0);
+  const kinds = issueDraft.length;
+  const countLine = `${pieces} ${t('pcs')}`
+    + (kinds !== pieces ? ` <span style="color:var(--muted);font-weight:400">· ${kinds} ${t('kinds')}</span>` : '');
+  box.innerHTML = lines + `<div style="display:flex;justify-content:space-between;padding:6px 8px;margin-top:4px;font-weight:700">
+      <span>${t('total')} <span style="color:var(--accent);font-size:13px">${countLine}</span></span>
+    </div>`;
 }
 function renderIssuePicker(){
   const box = document.getElementById('i-picker'); if(!box) return;
@@ -3324,7 +3339,8 @@ function addIssueLine(productId){
   if(line) line.qty += 1; else issueDraft.push({productId, name:p.name, qty:1});
   renderIssueLines();
 }
-function setIssueQty(idx, v){ issueDraft[idx].qty = Math.max(1, Number(v)||1); }
+// Re-render so the counter follows the change; onchange fires on blur, so focus is not stolen.
+function setIssueQty(idx, v){ issueDraft[idx].qty = Math.max(1, Number(v)||1); renderIssueLines(); }
 function removeIssueLine(idx){ issueDraft.splice(idx,1); renderIssueLines(); }
 function saveIssue(){
   const date = document.getElementById('i-date').value || today();
