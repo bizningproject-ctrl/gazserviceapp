@@ -83,10 +83,12 @@
     font-size:11px;font-weight:800;letter-spacing:.3px;margin-right:6px;vertical-align:1px;
     background:rgba(124,227,139,.16);color:#7ce38b;border:1px solid rgba(124,227,139,.38)}
   html[data-theme="light"] .jobno{background:#d9f5e1;color:#15803d;border-color:#9fdcb4}
-  /* Car plate — reads like a small licence plate, deliberately quieter than the car model */
-  .plate{display:inline-block;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;
-    letter-spacing:.6px;margin-left:6px;vertical-align:1px;font-family:Consolas,Menlo,monospace;
-    background:var(--chip);color:var(--muted);border:1px solid var(--line)}
+  /* Car plate — looks like a small licence plate: monospace, boxed, high contrast, so it
+     never reads as part of the car model next to it. */
+  .plate{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11.5px;font-weight:700;
+    letter-spacing:1px;margin-left:8px;vertical-align:1px;font-family:Consolas,Menlo,monospace;
+    background:#0d1b2a;color:#e8eef5;border:1px solid #35506b;white-space:nowrap}
+  html[data-theme="light"] .plate{background:#eef2f7;color:#1a2230;border-color:#9aa8bb}
   /* Unpaid install row — subtle red tint + red border accent */
   tr.unpaid{background:rgba(220,38,38,0.08);box-shadow:inset 4px 0 0 0 var(--neg)}
   tr.unpaid:hover{background:rgba(220,38,38,0.14)}
@@ -2263,11 +2265,16 @@ function renderExpenseExtras(preselectInstallerId, preselectInstallId){
       const summary = (j.items||[]).slice(0,2).map(i=>i.name).join(', ');
       const dup = dupCount[dupKey(j)] > 1;
       const who = dup ? installPayees(j).join(', ') : '';
+      // An <option> can carry no markup, so each field gets its own icon and non-breaking
+      // spaces around it — that is what makes the plate readable as a separate thing here
+      // instead of running into the car model.
       const plate = plateOf(j);
+      const NB = ' ';
       return `<option value="${j.id}"${sel}${dup?' style="color:var(--pos);font-weight:700"':''}>`
         + `№${installNoOf(j, noMap)} · ${escapeHtml(j.date)} — ${escapeHtml(car)}`
-        + `${plate?' ['+escapeHtml(plate)+']':''}`
-        + `${summary?' · '+escapeHtml(summary):''}${who?' · 👷 '+escapeHtml(who):''}</option>`;
+        + `${plate?`${NB}${NB}·${NB}🚗${NB}${escapeHtml(plate)}${NB}`:''}`
+        + `${summary?`${NB}·${NB}🔧${NB}`+escapeHtml(summary):''}`
+        + `${who?`${NB}·${NB}👷${NB}`+escapeHtml(who):''}</option>`;
     }).join('');
     // The installer sometimes has to be paid before any car is finished — pick the reason
     // instead of a car.
