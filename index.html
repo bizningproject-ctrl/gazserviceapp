@@ -2767,9 +2767,13 @@ function viewInstalls(){
     if(day !== lastDay){
       lastDay = day;
       const sameDay = filtered.filter(x => (x.date||'').slice(0,10) === day);
-      const gotSom = sameDay.reduce((s,x)=>s+(x.amountSom||0)+installCashlessSom(x), 0);
-      const gotUsd = sameDay.reduce((s,x)=>s+(x.amountUsd||0), 0);
-      const money = [gotSom>0?fmtSom(gotSom):null, gotUsd>0?fmtUsd(gotUsd):null].filter(Boolean).join(' + ') || '—';
+      // Money is counted on the day it arrived: a debt repaid today is today's money, so the
+      // day a car was fitted shows only what came in then, and repayments show on their date.
+      const repaidBack = x => (x.repayments||[]).reduce((s,r)=>s+repaySomOf(r), 0);
+      const gotSom = sameDay.reduce((s,x)=>s+Math.max(0,(x.amountSom||0)+installCashlessSom(x)+usdToSom(x.amountUsd||0)-repaidBack(x)), 0)
+        + state.installs.reduce((s,x)=>s+(x.repayments||[])
+            .filter(r=>String(r.date||'').slice(0,10)===day).reduce((t,r)=>t+repaySomOf(r),0), 0);
+      const money = gotSom>0 ? fmtSom(gotSom) : '—';
       dayRow = `<tr class="day-row"><td colspan="7">
         <span class="day-date">${fmtDayLong(day)}</span>
         <span class="day-meta">${sameDay.length} ${t('carsCount')}</span>
@@ -4129,6 +4133,23 @@ function downloadExcelReport(allTime){
     const a = amountsInPeriod(j);
     return usdToSom(a.usd) + a.som + a.transfer + a.click + a.terminal;
   };
+  /* Money is credited to the day it actually arrived. A debt repaid today is today's money,
+     even when the car was fitted three weeks ago — so a car's own day counts only what came
+     in on that day, and every repayment counts on its own date. */
+  const ownDayRevenueSom = j => {
+    const repaidSom = (j.repayments||[]).reduce((s,r)=>s+repaySomOf(r), 0);
+    return Math.max(0, usdToSom(Number(j.amountUsd)||0) + (Number(j.amountSom)||0)
+      + (Number(j.amountTransfer)||0) + (Number(j.amountClick)||0) + (Number(j.amountTerminal)||0)
+      - repaidSom);
+  };
+  const repaidOnDaySom = day => state.installs.reduce((s,j) =>
+    s + (j.repayments||[]).filter(r => String(r.date||'').slice(0,10) === day)
+                          .reduce((t,r)=>t+repaySomOf(r), 0), 0);
+  // Repayments received inside the period on cars fitted OUTSIDE it: they have no car row
+  // here, so the выручка card has to pick them up separately.
+  const outsideRepaySom = state.installs.reduce((s,j) => inRange(j.date, range) ? s
+    : s + (j.repayments||[]).filter(r => inRange(r.date, range))
+                            .reduce((t,r)=>t+repaySomOf(r), 0), 0);
   // Column A is ~17 characters wide at this font; long note / debt lines soft-wrap, so row
   // height must budget VISUAL lines, not just hard newlines, or the tail gets clipped.
   const visualLines = (txt, w) => String(txt).split('\n')
@@ -4229,7 +4250,9 @@ function downloadExcelReport(allTime){
   let jobIdx = 0;
   byDay.forEach(group => {
     // ---- day banner ----
-    const dayRevenue = group.jobs.reduce((s,j)=>s+inPeriodRevenueSom(j), 0);
+    // What the till actually saw on this date: the day's cars, plus any debt repaid today.
+    const dayRepaid = repaidOnDaySom(group.day);
+    const dayRevenue = group.jobs.reduce((s,j)=>s+ownDayRevenueSom(j), 0) + dayRepaid;
     const daySpend = group.jobs.reduce((s,j)=>s+usdToSom(installCOGS(j))
       + jobPayoutList(j).reduce((t,a)=>t+usdToSom(a.usd)+a.som, 0), 0)
       + incassoFor(group.jobs);
@@ -4240,6 +4263,7 @@ function downloadExcelReport(allTime){
     // below cover only real job rows and can't double-count the day summaries.
     const rDay = put(pad([S(label.toUpperCase() + '   ·   ' + group.jobs.length + ' авто'
       + '   ·   получено ' + nfRu(dayRevenue) + ' сум'
+      + (dayRepaid > 0 ? ' (в т.ч. погашено долгов ' + nfRu(dayRepaid) + ')' : '')
       + '   ·   расход ' + nfRu(daySpend) + ' сум'
       + '   ·   прибыль ' + nfRu(dayRevenue-daySpend) + ' сум', XLS.dayBand)], XLS.dayBand), 22);
     mergeRow(rDay, 0, COLS-1);
@@ -4293,7 +4317,14 @@ function downloadExcelReport(allTime){
       const carry = (parts.length>1 || hasInc) ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
         ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
-           S(payoutTxt,st.payout), S(moneyTextRu(A.usd,A.som,A.transfer,A.click,A.terminal),st.cell),
+           S(payoutTxt,st.payout),
+           // A repayment is shown with the date it came in, so the car line explains why the
+           // day it was fitted counts less money than the client eventually paid.
+           S(moneyTextRu(A.usd,A.som,A.transfer,A.click,A.terminal)
+             + (j.repayments||[]).filter(r=>inRange(r.date, range))
+                 .map(r=>'\n↩ погашено ' + nfRu(Math.round(repaySomOf(r))) + ' сум · '
+                        + String(r.date||'').slice(8,10) + '.' + String(r.date||'').slice(5,7)).join(''),
+             st.cell),
            S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
         : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
@@ -4561,13 +4592,15 @@ function downloadExcelReport(allTime){
     ? at(rCostTotal,COST_COL) : null;
   // Выручка is no longer its own column — it is расходы + прибыль, which is the same number,
   // plus the shop-sales block when there is one.
-  const revRef  = rSpendTotal!=null
+  const revRef  = (rSpendTotal!=null && outsideRepaySom === 0)
     ? at(rSpendTotal,SPEND_COL)+'+'+at(rProfitTotal,PROFIT_COL)
       + (rSalesTotal!=null ? '+'+at(rSalesTotal,6) : '') : null;
   const expRef  = rExpTotal!=null  ? at(rExpTotal,EXP_MONEY_COL) : null;
   // Values are computed here as well as referenced by formula, so the cards read correctly
   // even in a viewer that never recalculates.
-  const vRevenue  = totSpend + totProfit + salesRevenueSom;   // installs + shop sales
+  // installs + shop sales + debts repaid this period on cars fitted before it (those have no
+  // row in section 1, but the money did come in — it is already in the method table above).
+  const vRevenue  = totSpend + totProfit + salesRevenueSom + outsideRepaySom;
   const vCost     = totCost + salesCostSom;                   // parts fitted + parts sold
   const vExpenses = expLines.reduce((s,e)=>s+e.total, 0);  // wages + everything else paid out
   // The boss receives CASH only — som and dollars from the till. Money that came in by
