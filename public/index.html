@@ -302,6 +302,8 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     plate:'Plate number', plateHint:'01A123BC',
+    incasso:'Cash collection per car', incassoDesc:'Charged once for every car fitted. Counts as an expense and is shown per car in the report. Set 0 to switch it off.',
+    incassoSaved:'Cash collection saved', incassoLine:'Cash collection',
     carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
     carModelRequired:'Write the car model name',
     exportPeriod:'Excel will cover this period', excelByPeriod:'Excel for a period',
@@ -445,6 +447,8 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
+    incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину. Входит в расходы и показывается по каждой машине в отчёте. 0 — не считать.',
+    incassoSaved:'Инкасация сохранена', incassoLine:'Инкасация',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
     carModelRequired:'Впишите название модели авто',
     exportPeriod:'Excel будет за этот период', excelByPeriod:'Excel за период',
@@ -588,6 +592,8 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     plate:'Davlat raqami', plateHint:'01A123BC',
+    incasso:"Har mashina uchun inkassatsiya (so'm)", incassoDesc:"Har o'rnatilgan mashina uchun hisoblanadi. Xarajatga kiradi va hisobotda har mashina bo'yicha ko'rsatiladi. 0 — hisoblanmaydi.",
+    incassoSaved:'Inkassatsiya saqlandi', incassoLine:'Inkassatsiya',
     carModelOther:'Avto modeli nomi', carModelOtherHint:'masalan: Gentra, Hyundai Accent…',
     carModelRequired:'Avto modeli nomini yozing',
     exportPeriod:'Excel shu davr uchun bo\'ladi', excelByPeriod:'Davr uchun Excel',
@@ -684,6 +690,9 @@ const KEY = 'gazmetprod_v2';
 const DEFAULT_STATE = {
   lang: 'en',
   rate: 12900,
+  // Cash-collection fee charged once per fitted car (сум). Counted as an expense and shown
+  // on every car line in the report; 0 turns it off.
+  incassoPerCar: 300000,
   products: [],   // {id,name,sku,priceUsd,costUsd,stock,supplierId,minStock}
   suppliers: [],  // {id,name,phone,note}
   sales: [],      // {id,date,items,paidUsd,paidSom,totalUsd,cashier}
@@ -932,6 +941,10 @@ function updateSomHint(inputId, hintId){
   const v = Number(inp.value)||0;
   hint.textContent = v ? '= '+fmtNum(v)+' som' : '';
 }
+// Инкасация: one fixed fee per fitted car. Kept as a rate in settings rather than typed as
+// an expense per car, because it is the same for every car and nobody wants to enter it 79 times.
+const incassoPerCar = () => Math.max(0, Number(state.incassoPerCar) || 0);
+const incassoFor = list => (list||[]).length * incassoPerCar();
 const usdToSom = v => (Number(v)||0) * state.rate;
 const somToUsd = v => (Number(v)||0) / state.rate;
 /* Render a stacked two-currency value for KPI tiles. Each currency shows its
@@ -3366,7 +3379,9 @@ function viewDashboard(){
   // Purchases made on the Закупки page are the boss's own settlement and stay out of it.
   const recordPurch = state.expenses.filter(isRecordPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const handPurch   = state.expenses.filter(isHandPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
-  const opExp = totalExp - recordPurch;
+  // Инкасация is charged per fitted car, not typed in as an expense — add it in here.
+  const incassoUsd = somToUsd(incassoFor(state.installs));
+  const opExp = totalExp - recordPurch + incassoUsd;
   const cogs = periodCOGS(state.sales, state.installs);
   // Profit takes the goods once, as себестоимость — so no закупки are subtracted here.
   const profit = totalRev - cogs - (opExp - handPurch);
@@ -3392,8 +3407,10 @@ function viewDashboard(){
                               state.installs.filter(j=>isWithinDays(j.date,7)));
   const monthCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,30)),
                                state.installs.filter(j=>isWithinDays(j.date,30)));
-  const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0);
-  const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0);
+  const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0)
+    + somToUsd(incassoFor(state.installs.filter(j=>isWithinDays(j.date,7))));
+  const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0)
+    + somToUsd(incassoFor(state.installs.filter(j=>isWithinDays(j.date,30))));
   const weekProfit = weekRev - weekCogs - weekOpExp;
   const monthProfit = monthRev - monthCogs - monthOpExp;
   const lowStock = state.products.filter(p=>p.stock<=(p.minStock||0));
@@ -3639,7 +3656,8 @@ function archiveData(range){
   // records (the boss settles those himself). Profit subtracts no закупки at all, because
   // the goods are already charged as себестоимость when fitted.
   const handPurchUsd = expenses.filter(isHandPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
-  const opExp = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+expenseTotalUsd(e),0);
+  const opExp = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+expenseTotalUsd(e),0)
+    + somToUsd(incassoFor(installs));   // per-car collection fee for this period
   // Real cash out per currency in this period
   const opExpUsd = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountUsd||0),0);
   const opExpSom = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountSom||0),0);
@@ -4188,9 +4206,9 @@ function downloadExcelReport(allTime){
   mergeRow(put([S('1. Раздельный учёт себестоимости деталей, оплаты установщиков и выручки', XLS.section)]), 0, COLS-1);
   const COST_COL = 2, SPEND_COL = 5, PROFIT_COL = 6;
   put(pad([S('Модель авто / заметка',XLS.headNavy), S('Установленный деталь / компонент',XLS.headNavy),
-           S('Себестоимость детали (сум)',XLS.headNavy), S('Выплаты установщикам (кто / сколько)',XLS.headNavy),
+           S('Себестоимость детали (сум)',XLS.headNavy), S('Выплаты установщикам + инкасация',XLS.headNavy),
            S('Получено от клиента',XLS.headNavy),
-           S('Расходы: детали + мастера (сум)',XLS.headNavy), S('ЧИСТАЯ ПРИБЫЛЬ (сум)',XLS.headNavy)],
+           S('Расходы: детали + мастера + инкасация (сум)',XLS.headNavy), S('ЧИСТАЯ ПРИБЫЛЬ (сум)',XLS.headNavy)],
           XLS.headNavy), 30);
 
   const jobs = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -4204,13 +4222,14 @@ function downloadExcelReport(allTime){
     else byDay.push({day, jobs:[j]});
   });
   const firstJobRow = rows.length;
-  let totCost = 0, totSpend = 0, totProfit = 0, totPay = 0;
+  let totCost = 0, totSpend = 0, totProfit = 0, totPay = 0, totIncasso = 0;
   let jobIdx = 0;
   byDay.forEach(group => {
     // ---- day banner ----
     const dayRevenue = group.jobs.reduce((s,j)=>s+inPeriodRevenueSom(j), 0);
     const daySpend = group.jobs.reduce((s,j)=>s+usdToSom(installCOGS(j))
-      + jobPayoutList(j).reduce((t,a)=>t+usdToSom(a.usd)+a.som, 0), 0);
+      + jobPayoutList(j).reduce((t,a)=>t+usdToSom(a.usd)+a.som, 0), 0)
+      + incassoFor(group.jobs);
     const label = group.day
       ? new Date(group.day+'T00:00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'})
       : 'без даты';
@@ -4232,19 +4251,26 @@ function downloadExcelReport(allTime){
     const parts = (j.items||[]).length ? j.items : [{name:'—', qty:0, productId:null}];
     const payouts = jobPayoutList(j);
     // "Baxromaka — 400 000 сум" per installer, one per line (amounts already summed per person).
-    const payoutTxt = payouts.map(a=>{
+    const payoutLines = payouts.map(a=>{
       const m = [];
       if(a.usd>0) m.push('$'+nfRu(a.usd));
       if(a.som>0) m.push(nfRu(a.som)+' сум');
       return nameOf(a.installerId) + ' — ' + (m.join(' + ') || 'не выплачено');
-    }).join('\n') || 'установщик не назначен';
+    });
+    if(!payoutLines.length) payoutLines.push('установщик не назначен');
+    // The collection fee is money paid out for this very car, so it belongs on the car's own
+    // line — that is what makes it visible per car instead of only in a lump sum below.
+    if(incassoPerCar() > 0) payoutLines.push('Инкасация — ' + nfRu(incassoPerCar()) + ' сум');
+    const payoutTxt = payoutLines.join('\n');
     // Everything in this section is reported in som — the currency the shop actually works in.
     const A = amountsInPeriod(j);
     const revenue = inPeriodRevenueSom(j);
     const payment = payouts.reduce((s,a)=>s+usdToSom(a.usd)+a.som, 0);
     const partsSom = usdToSom(installCOGS(j));
-    const spend = partsSom + payment;                      // everything this car cost us
+    const inc = incassoPerCar();                           // одна инкасация на машину
+    const spend = partsSom + payment + inc;                // everything this car cost us
     totCost += partsSom; totSpend += spend; totProfit += revenue-spend; totPay += payment;
+    totIncasso += inc;
     const top = rows.length;
     // The note the user typed on the install goes straight under the car model, so it is
     // read on the car's own line instead of being lost.
@@ -4283,7 +4309,7 @@ function downloadExcelReport(allTime){
     rCostTotal = rSpendTotal = rProfitTotal = put(pad([
       S('ИТОГО ПО УСТАНОВКАМ:', XLS.totalLabel), S('', XLS.totalFill),
       {...sum(COST_COL, totCost), s:XLS.totalCost},
-      S(totPay, XLS.totalExpense), S('', XLS.totalFill),
+      S(totPay + totIncasso, XLS.totalExpense), S('', XLS.totalFill),
       {...sum(SPEND_COL, totSpend), s:XLS.totalExpense},
       {...sum(PROFIT_COL, totProfit), s:XLS.profitTotal}], XLS.totalFill), 22);
     mergeRow(rCostTotal, 0, 1);
@@ -4436,6 +4462,19 @@ function downloadExcelReport(allTime){
     };
   })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const handPurchaseTotal = expLines.filter(e=>e.isPurchase).reduce((s,e)=>s+e.total, 0);
+  // One summary line for the whole period, on top: the per-car amounts are already printed
+  // on each car's own line in section 1, so repeating them 79 times here would be noise.
+  const incassoSom = incassoFor(d.installs);
+  if(incassoSom > 0){
+    expLines.unshift({
+      date: '',
+      article: 'Инкасация',
+      category: d.installs.length + ' авто × ' + nfRu(incassoPerCar()) + ' сум',
+      form: nfRu(incassoSom) + ' сум',
+      total: incassoSom,
+      cash: incassoSom,
+    });
+  }
 
   gap();
   mergeRow(put([S((3+secShift)+'. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
@@ -4686,6 +4725,20 @@ function viewSettings(){
       <div id="rate-preview" style="margin-top:14px"></div>
     </div>
     <div class="card">
+      <h3 style="margin-top:0">${t('incasso')}</h3>
+      <p style="color:var(--muted)">${t('incassoDesc')}</p>
+      <div class="row">
+        <div class="col" style="max-width:240px">
+          <input id="set-incasso" type="number" step="1000" min="0" value="${incassoPerCar()}">
+        </div>
+        <div style="align-self:flex-end"><button class="primary" onclick="saveIncasso()">${t('save')}</button></div>
+      </div>
+      <div style="margin-top:10px;color:var(--muted);font-size:13px">
+        ${state.installs.length} × ${fmtSom(incassoPerCar())} =
+        <b style="color:var(--neg)">${fmtSom(incassoFor(state.installs))}</b>
+      </div>
+    </div>
+    <div class="card">
       <h3 style="margin-top:0">${t('dataBackup')}</h3>
       <p style="color:var(--muted)">${t('backupDesc')}</p>
       <button onclick="exportData()">${t('exportJson')}</button>
@@ -4732,6 +4785,14 @@ function renderRatePreview(){
       <div class="kpi"><div class="l">${t('netProfit')}</div><div class="v" style="color:${profit>=0?'#7ce38b':'#ffb4b4'}">${fmtUsd(profit)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(profit)}</div></div>
       <div class="kpi"><div class="l">${t('inventoryValue')}</div><div class="v">${fmtUsd(inv)}</div><div style="color:var(--muted);font-size:13px;margin-top:2px">${fmtSomAt(inv)}</div></div>
     </div>`;
+}
+function saveIncasso(){
+  const v = Number(document.getElementById('set-incasso')?.value);
+  if(!(v >= 0)){ alert(t('invalidAmount')); return; }
+  state.incassoPerCar = Math.round(v);
+  save();
+  viewSettings();
+  alert(t('incassoSaved'));
 }
 function saveRate(){
   const v = Number(document.getElementById('set-rate').value);
