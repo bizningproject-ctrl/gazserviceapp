@@ -302,6 +302,8 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     plate:'Plate number', plateHint:'01A123BC',
+    approvedHistory:'Already approved', approvedWhen:'Approved', noApprovedYet:'Nothing approved yet',
+    showingLast:'last 200 shown',
     warehouseRole:'Storekeeper', issues:'Stock issued', recon:'Check vs installs',
     newIssue:'+ Issue from stock', issueTitle:'Parts issued from the warehouse',
     issuedParts:'Parts issued', issueSaved:'Issued',
@@ -457,6 +459,8 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     plate:'Гос. номер', plateHint:'01A123BC',
+    approvedHistory:'Уже утверждено', approvedWhen:'Утверждено', noApprovedYet:'Пока ничего не утверждено',
+    showingLast:'показаны последние 200',
     warehouseRole:'Кладовщик', issues:'Выдача со склада', recon:'Сверка с установками',
     newIssue:'+ Выдать со склада', issueTitle:'Что выдано со склада',
     issuedParts:'Выданные детали', issueSaved:'Выдача записана',
@@ -612,6 +616,8 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     plate:'Davlat raqami', plateHint:'01A123BC',
+    approvedHistory:'Tasdiqlangan', approvedWhen:'Tasdiqlandi', noApprovedYet:'Hali hech nima tasdiqlanmagan',
+    showingLast:"oxirgi 200 ta ko'rsatilgan",
     warehouseRole:'Omborchi', issues:'Ombordan berilgan', recon:"O'rnatish bilan solishtirish",
     newIssue:'+ Ombordan berish', issueTitle:'Ombordan nima berildi',
     issuedParts:'Berilgan detallar', issueSaved:'Berish yozildi',
@@ -1097,10 +1103,10 @@ const NAV_ALL = [
   {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller','warehouse']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
   {id:'users', key:'users', fn:()=>viewUsers(), roles:['boss']},
-  // Settings holds the rate preview (revenue, profit, stock value), the full JSON export and
-  // the wipe button — none of which is the accountant's business. He gets Approvals, nothing
-  // else: his job is to confirm transfers, not to look at what the shop earns.
-  {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss']},
+  // The accountant reaches Settings for one thing only — the инкасация amount. Everything
+  // else on that page (rate preview with revenue and profit, JSON export, wipe) is rendered
+  // for the boss alone; see viewSettings.
+  {id:'settings', key:'settings', fn:()=>viewSettings(), roles:['boss','accountant']},
 ];
 let role = sessionStorage.getItem('role') || null;
 const NAV = () => NAV_ALL.filter(n=>n.roles.includes(role));
@@ -3647,7 +3653,46 @@ function viewApprovals(){
         <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>${t('charged')}</th><th>${t('note')}</th><th></th></tr></thead>
         <tbody>${expenseRows}</tbody>
       </table>
-    </div>` : ''}`;
+    </div>` : ''}
+    ${approvedHistoryCard()}`;
+}
+/* What the accountant has already confirmed. Only records he actually approved show up —
+   they are the ones carrying approvedAt; cash was never his to confirm. */
+function approvedHistory(){
+  const out = [];
+  const push = (rec, kind, what, som, usd, transfer) => out.push({rec, kind, what, som, usd, transfer});
+  (state.sales||[]).forEach(s => { if(s.approvedAt) push(s, t('sales'),
+      (s.items||[]).map(i=>i.name+' ×'+i.qty).join(', '), s.paidSom, s.paidUsd, s.paidTransfer); });
+  (state.installs||[]).forEach(j => { if(j.approvedAt) push(j, t('installs'),
+      (j.carModel||'—') + (plateOf(j)?' · '+plateOf(j):''), j.amountSom, j.amountUsd, j.amountTransfer); });
+  (state.expenses||[]).forEach(e => { if(e.approvedAt) push(e, t('expenses'),
+      [t('expense_'+e.type), e.note].filter(Boolean).join(' · '), e.amountSom, e.amountUsd, 0); });
+  return out.sort((a,b) => String(b.rec.approvedAt||'').localeCompare(String(a.rec.approvedAt||'')));
+}
+function approvedHistoryCard(){
+  const list = approvedHistory();
+  const rows = list.slice(0, 200).map(x => `<tr>
+      <td>${String(x.rec.date||'').slice(0,10)}</td>
+      <td><span class="chip">${escapeHtml(x.kind)}</span></td>
+      <td style="font-size:12px;max-width:280px">${escapeHtml(x.what||'—')}</td>
+      <td>${(Number(x.transfer)||0) > 0
+            ? `<b style="color:var(--accent)">${fmtSom(x.transfer)}</b> <small style="color:var(--muted)">${t('paidTransfer')}</small>`
+            : fmtDualPay(x.som||0, x.usd||0)}</td>
+      <td style="font-size:12px;color:var(--muted)">${escapeHtml(String(x.rec.approvedAt||'').slice(0,16).replace('T',' '))}
+          ${x.rec.approvedBy?`<div>${escapeHtml(x.rec.approvedBy)}</div>`:''}</td>
+    </tr>`).join('');
+  return `
+    <div class="card" style="margin-top:12px;padding:0">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--line)">
+        <b>${t('approvedHistory')} (${list.length})</b>
+        ${list.length > 200 ? `<small style="color:var(--muted);margin-left:8px">${t('showingLast')}</small>` : ''}
+      </div>
+      <table>
+        <thead><tr><th>${t('date')}</th><th>${t('expType')}</th><th>${t('items')}</th>
+                   <th>${t('charged')}</th><th>${t('approvedWhen')}</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">${t('noApprovedYet')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
 }
 
 /* =================== DASHBOARD =================== */
@@ -5059,16 +5104,10 @@ function viewHelp(){
 }
 
 function viewSettings(){
-  V().innerHTML = `
-    <div class="card">
-      <h3 style="margin-top:0">${t('exchangeRate')}</h3>
-      <p style="color:var(--muted)">${t('exchangeDesc')}</p>
-      <div class="row">
-        <div class="col" style="max-width:240px"><label>1 USD =</label><input id="set-rate" type="number" step="1" value="${state.rate}" oninput="renderRatePreview()"></div>
-        <div style="align-self:flex-end"><button class="primary" onclick="saveRate()">${t('saveRate')}</button></div>
-      </div>
-      <div id="rate-preview" style="margin-top:14px"></div>
-    </div>
+  // The accountant sets инкасация and sees nothing else here: the rate preview prints
+  // выручка / прибыль / стоимость склада, and below it sit the export and the wipe button.
+  const boss = isBoss();
+  const incassoCard = `
     <div class="card">
       <h3 style="margin-top:0">${t('incasso')}</h3>
       <p style="color:var(--muted)">${t('incassoDesc')}</p>
@@ -5082,7 +5121,19 @@ function viewSettings(){
         ${state.installs.length} × ${fmtSom(incassoPerCar())} =
         <b style="color:var(--neg)">${fmtSom(incassoFor(state.installs))}</b>
       </div>
+    </div>`;
+  if(!boss){ V().innerHTML = incassoCard; return; }
+  V().innerHTML = `
+    <div class="card">
+      <h3 style="margin-top:0">${t('exchangeRate')}</h3>
+      <p style="color:var(--muted)">${t('exchangeDesc')}</p>
+      <div class="row">
+        <div class="col" style="max-width:240px"><label>1 USD =</label><input id="set-rate" type="number" step="1" value="${state.rate}" oninput="renderRatePreview()"></div>
+        <div style="align-self:flex-end"><button class="primary" onclick="saveRate()">${t('saveRate')}</button></div>
+      </div>
+      <div id="rate-preview" style="margin-top:14px"></div>
     </div>
+    ${incassoCard}
     <div class="card">
       <h3 style="margin-top:0">${t('dataBackup')}</h3>
       <p style="color:var(--muted)">${t('backupDesc')}</p>
