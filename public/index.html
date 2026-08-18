@@ -159,8 +159,88 @@
   .install-picker .ip-card:hover{border-color:var(--accent);transform:translateY(-1px)}
   .install-picker .ip-badge{position:absolute;top:4px;right:4px;background:var(--accent);color:#fff;padding:2px 6px;border-radius:10px;font-size:11px;font-weight:700}
   .install-line{display:grid;grid-template-columns:1fr 110px 90px 30px;gap:6px;margin-bottom:6px;align-items:center;background:var(--panel2);padding:6px 8px;border-radius:6px}
-  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px;width:420px;max-width:100%}
+  /* ---------- Login: a quiet bit of life, not a fairground ----------
+     CSS only — no timers, no scripts. #login is hidden the moment someone signs in,
+     so none of this keeps running while the app is in use. */
+  .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+    position:relative;overflow:hidden}
+  /* Two slow drifting lights in the brand colours, behind everything. */
+  .login::before,.login::after{content:'';position:absolute;border-radius:50%;pointer-events:none;
+    filter:blur(70px);opacity:.5;z-index:0}
+  .login::before{width:520px;height:520px;left:-140px;top:-120px;
+    background:radial-gradient(circle,var(--accent),transparent 70%);animation:drift1 22s ease-in-out infinite}
+  .login::after{width:460px;height:460px;right:-120px;bottom:-140px;
+    background:radial-gradient(circle,var(--pos),transparent 70%);animation:drift2 27s ease-in-out infinite}
+  html[data-theme="light"] .login::before,html[data-theme="light"] .login::after{opacity:.26}
+  @keyframes drift1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(90px,60px) scale(1.12)}}
+  @keyframes drift2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,-50px) scale(1.08)}}
+  /* Gas rising from the bottom — what this shop actually sells. */
+  .login-bubbles{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+  .login-bubbles i{position:absolute;bottom:-40px;display:block;border-radius:50%;
+    background:var(--accent);opacity:0;animation:rise linear infinite}
+  .login-bubbles i:nth-child(3n){background:var(--pos)}
+  .login-bubbles i:nth-child(1){left:8%;width:10px;height:10px;animation-duration:15s;animation-delay:0s}
+  .login-bubbles i:nth-child(2){left:19%;width:6px;height:6px;animation-duration:19s;animation-delay:3s}
+  .login-bubbles i:nth-child(3){left:31%;width:14px;height:14px;animation-duration:23s;animation-delay:1.5s}
+  .login-bubbles i:nth-child(4){left:43%;width:7px;height:7px;animation-duration:17s;animation-delay:6s}
+  .login-bubbles i:nth-child(5){left:56%;width:11px;height:11px;animation-duration:21s;animation-delay:2s}
+  .login-bubbles i:nth-child(6){left:67%;width:5px;height:5px;animation-duration:14s;animation-delay:8s}
+  .login-bubbles i:nth-child(7){left:78%;width:13px;height:13px;animation-duration:25s;animation-delay:4s}
+  .login-bubbles i:nth-child(8){left:88%;width:8px;height:8px;animation-duration:18s;animation-delay:10s}
+  .login-bubbles i:nth-child(9){left:95%;width:6px;height:6px;animation-duration:20s;animation-delay:5s}
+  .login-bubbles i:nth-child(10){left:2%;width:9px;height:9px;animation-duration:24s;animation-delay:7s}
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0);opacity:0}
+    10%{opacity:.45}
+    50%{transform:translateY(-52vh) translateX(24px)}
+    90%{opacity:.25}
+    100%{transform:translateY(-105vh) translateX(-14px);opacity:0}
+  }
+  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:30px;width:420px;max-width:100%;
+    position:relative;z-index:1;box-shadow:0 24px 60px rgba(0,0,0,.28);
+    animation:cardIn .6s cubic-bezier(.2,.7,.3,1) both}
+  html[data-theme="light"] .login-box{box-shadow:0 24px 60px rgba(27,54,93,.13)}
+  @keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+  /* Each field arrives just after the card, top to bottom. */
+  .login-box>*{animation:fieldIn .5s ease both}
+  .login-box>*:nth-child(1){animation-delay:.10s}
+  .login-box>*:nth-child(2){animation-delay:.16s}
+  .login-box>*:nth-child(3){animation-delay:.20s}
+  .login-box>*:nth-child(4){animation-delay:.24s}
+  .login-box>*:nth-child(5){animation-delay:.28s}
+  .login-box>*:nth-child(6){animation-delay:.32s}
+  .login-box>*:nth-child(7){animation-delay:.36s}
+  .login-box>*:nth-child(8){animation-delay:.40s}
+  .login-box>*:nth-child(9){animation-delay:.44s}
+  @keyframes fieldIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  /* The logo breathes; its halo pulses out of step so it never looks mechanical. */
+  .login-logo{position:relative}
+  .login-logo svg{animation:logoBreathe 4.5s ease-in-out infinite;transform-origin:center}
+  .login-logo::before{content:'';position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -62px;
+    border-radius:50%;background:var(--accent);filter:blur(22px);opacity:.3;
+    animation:halo 4.5s ease-in-out infinite;pointer-events:none}
+  @keyframes logoBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+  @keyframes halo{0%,100%{opacity:.2;transform:scale(.9)}50%{opacity:.42;transform:scale(1.15)}}
+  .login-box input{transition:box-shadow .2s,border-color .2s}
+  .login-box input:focus{box-shadow:0 0 0 3px rgba(47,129,247,.18)}
+  /* A light sweeps across the button on hover; on tap it presses in. */
+  #login-btn{position:relative;overflow:hidden}
+  #login-btn::after{content:'';position:absolute;top:0;left:-60%;width:45%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.38),transparent);transform:skewX(-18deg)}
+  #login-btn:hover::after{animation:sweep .75s ease}
+  #login-btn:active{transform:translateY(1px)}
+  @keyframes sweep{to{left:130%}}
+  /* Safety net: the entrance animation starts at opacity 0, so if it never runs — a tab
+     that was never shown, an engine that ignores it — the form would stay invisible and
+     nobody could sign in. A class set from script a moment later forces it visible; when
+     the animation did run this changes nothing, it already ended at opacity 1. */
+  .login.shown .login-box,.login.shown .login-box>*{opacity:1!important}
+  /* Anyone whose system asks for calmer animation gets a still page. */
+  @media (prefers-reduced-motion: reduce){
+    .login::before,.login::after,.login-bubbles i,.login-logo svg,.login-logo::before,
+    .login-box,.login-box>*{animation:none!important}
+    .login-box>*{opacity:1;transform:none}
+  }
   .login-box h2{margin:0 0 4px 0}
   .login-box p{color:var(--muted);margin:0 0 20px 0;font-size:13px}
   .role-grid{display:grid;gap:10px;margin-top:14px}
@@ -181,6 +261,7 @@
 <body>
 
 <div id="login" class="login">
+  <div class="login-bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="login-box">
     <div class="login-logo">
       <svg width="44" height="44" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -5541,6 +5622,8 @@ setLangButtons();
       applyLoginI18n();
     }
   }
+  // Entrance animation is ~0.95s; after that the login must be visible whatever happened.
+  setTimeout(() => document.getElementById('login')?.classList.add('shown'), 1500);
 })();
 </script>
 </body>
