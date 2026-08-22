@@ -445,6 +445,8 @@ const LOCALES = {
     unpaid:'Unpaid',
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
+    unit:'Unit', unit_pcs:'pcs', unit_m:'m', unit_kg:'kg', unit_l:'L',
+    unitHint:'Hose and the like are kept in metres — then 3.5 can be written off a car.',
     productGone:'product deleted from the catalogue — kept on this car',
     productInUse:'This product is already on {n} record(s). Deleting it keeps it on those cars but removes it from the catalogue. Delete anyway?',
     plate:'Plate number', plateHint:'01A123BC',
@@ -609,6 +611,8 @@ const LOCALES = {
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
+    unit:'Единица', unit_pcs:'шт', unit_m:'м', unit_kg:'кг', unit_l:'л',
+    unitHint:'Шланга и подобное держатся в метрах — тогда на машину можно списать 3,5.',
     productGone:'товар удалён из справочника — на этой машине сохранён',
     productInUse:'Этот товар уже стоит в {n} записях. После удаления он останется на тех машинах, но исчезнет из справочника. Всё равно удалить?',
     plate:'Гос. номер', plateHint:'01A123BC',
@@ -773,6 +777,8 @@ const LOCALES = {
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
+    unit:'Oʻlchov', unit_pcs:'dona', unit_m:'m', unit_kg:'kg', unit_l:'L',
+    unitHint:'Shlang va shunga oʻxshashlar metrda yuritiladi — shunda mashinaga 3,5 yozish mumkin.',
     productGone:'mahsulot katalogdan o\'chirilgan — bu mashinada saqlanib qolgan',
     productInUse:'Bu mahsulot allaqachon {n} ta yozuvda bor. O\'chirilsa, o\'sha mashinalarda qoladi, lekin katalogdan yo\'qoladi. Baribir o\'chirilsinmi?',
     plate:'Davlat raqami', plateHint:'01A123BC',
@@ -1080,6 +1086,32 @@ let state = loadLocal();
 const uid = () => Math.random().toString(36).slice(2,10);
 const today = () => new Date().toISOString().slice(0,10);
 const nowISO = () => new Date().toISOString();
+
+/* =================== UNITS OF MEASURE =================== */
+/* Most parts are counted in pieces, but hose is bought and cut by the metre: 15 m in, 3.5 m
+   onto a car. So a product carries a unit, quantities may be fractional for anything that is
+   not pieces, and every place that shows a quantity says what it is measuring.
+   The unit is copied onto each saved line as well, so an old record still reads correctly
+   after the product is renamed, re-measured or deleted. */
+const UNITS = ['pcs','m','kg','l'];
+const unitLabel = u => t('unit_' + (UNITS.includes(u) ? u : 'pcs'));
+const isWholeUnit = u => !u || u === 'pcs';
+const productUnit = pid => { const p = state.products.find(x => x.id === pid); return (p && p.unit) || 'pcs'; };
+// Pieces stay whole; metres and the rest keep three decimals so repeated cuts do not drift.
+const roundQty = (v, u) => isWholeUnit(u) ? Math.round(Number(v)||0) : Math.round((Number(v)||0) * 1000) / 1000;
+const qtyStep  = u => isWholeUnit(u) ? 1 : 0.1;
+const qtyMin   = u => isWholeUnit(u) ? 1 : 0.1;
+// "×2" for pieces — the shop is used to it — and "3.5 м" for anything measured.
+const qtyText = (qty, u) => isWholeUnit(u)
+  ? '×' + Math.round(Number(qty)||0)
+  : (+(Number(qty)||0).toFixed(2)) + ' ' + unitLabel(u);
+// An item saved before units existed has no unit of its own: fall back to the product's.
+const itemUnit = it => (it && it.unit) || productUnit(it && it.productId);
+const itemQtyText = it => qtyText(it && it.qty, itemUnit(it));
+// Stock always printed with its unit, so "15" is never mistaken for 15 pieces of hose.
+const stockText = p => (isWholeUnit(p && p.unit)
+  ? String(Math.round(Number(p && p.stock)||0))
+  : String(+(Number(p && p.stock)||0).toFixed(2))) + ' ' + unitLabel(p && p.unit);
 
 /* =================== PER-DAY CAR NUMBER =================== */
 /* Cars fitted on the same date get 1, 2, 3… in the order they were entered. Three
@@ -1534,7 +1566,7 @@ function renderPOSGrid(){
       <div class="price">${fmtUsd(p.priceUsd)}</div>
       <div style="color:var(--muted);font-size:12px">${fmtSom(usdToSom(p.priceUsd))}</div>
       ${avgLine}
-      <div class="stock">${t('stockCol')}: ${p.stock}${p.sku?' · '+escapeHtml(p.sku):''}</div>
+      <div class="stock">${t('stockCol')}: ${stockText(p)}${p.sku?' · '+escapeHtml(p.sku):''}</div>
     </div>`;
   }).join('');
 }
@@ -1576,7 +1608,7 @@ function renderCart(){
         </div>
         <div class="qty-ctrl">
           <button onclick="changeQty('${p.id}',-1)">−</button>
-          <span style="min-width:20px;text-align:center">${it.qty}</span>
+          <span style="min-width:20px;text-align:center">${isWholeUnit(p.unit) ? it.qty : (+it.qty.toFixed(2)) + ' ' + unitLabel(p.unit)}</span>
           <button onclick="changeQty('${p.id}',1)">+</button>
         </div>
       </div>`;
@@ -1770,7 +1802,7 @@ function renderProductRows(){
       <td><b>${escapeHtml(p.name)}</b>${p.sku?'<br><small style="color:var(--muted)">'+escapeHtml(p.sku)+'</small>':''}</td>
       ${boss?`<td style="color:var(--neg)">${fmtUsd(p.costUsd||0)}</td>`:''}
       <td>${fmtUsd(p.priceUsd)}<br><small style="color:var(--muted)">${fmtSom(usdToSom(p.priceUsd))}</small></td>
-      <td>${p.stock} ${low?'<span class="chip bad">'+t('lowStock')+'</span>':''} ${defQty>0?`<span class="chip warn" title="${t('defectives')}">${defQty} ${t('defectiveCount')}</span>`:''}</td>
+      <td>${stockText(p)} ${low?'<span class="chip bad">'+t('lowStock')+'</span>':''} ${defQty>0?`<span class="chip warn" title="${t('defectives')}">${defQty} ${t('defectiveCount')}</span>`:''}</td>
       <td>${sup?escapeHtml(sup.name):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right">
         <button onclick="openAddProduct('${p.id}')">${t('edit')}</button>
@@ -1811,7 +1843,7 @@ function viewProducts(){
 }
 function inventoryValue(){ return state.products.reduce((s,p)=>s+p.priceUsd*p.stock,0);}
 function openAddProduct(id){
-  const p = id ? state.products.find(x=>x.id===id) : {name:'',sku:'',priceUsd:0,costUsd:0,stock:0,supplierId:'',minStock:0};
+  const p = id ? state.products.find(x=>x.id===id) : {name:'',sku:'',priceUsd:0,costUsd:0,stock:0,supplierId:'',minStock:0,unit:'pcs'};
   const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}" ${p.supplierId===s.id?'selected':''}>${escapeHtml(s.name)}</option>`).join('');
   const costRow = seesCostPrice() ? `
     <div class="row" style="margin-top:10px">
@@ -1829,8 +1861,13 @@ function openAddProduct(id){
     </div>
     ${costRow}
     <div class="row" style="margin-top:10px">
-      <div class="col"><label>${t('stockCol')}</label><input id="f-stock" type="number" value="${p.stock}"></div>
-      <div class="col"><label>${t('lowWarn')}</label><input id="f-min" type="number" value="${p.minStock||0}"></div>
+      <div class="col"><label>${t('unit')}</label>
+        <select id="f-unit">${UNITS.map(u=>`<option value="${u}"${(p.unit||'pcs')===u?' selected':''}>${unitLabel(u)}</option>`).join('')}</select>
+        <small style="color:var(--muted);font-size:11px">${t('unitHint')}</small></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>${t('stockCol')}</label><input id="f-stock" type="number" step="any" value="${p.stock}"></div>
+      <div class="col"><label>${t('lowWarn')}</label><input id="f-min" type="number" step="any" value="${p.minStock||0}"></div>
     </div>
     <label style="margin-top:10px">${t('supplier')}</label>
     <select id="f-sup">${supOpts}</select>
@@ -1847,8 +1884,9 @@ function saveProduct(id){
     name,
     sku: document.getElementById('f-sku').value.trim(),
     priceUsd: Number(document.getElementById('f-price').value)||0,
-    stock: Number(document.getElementById('f-stock').value)||0,
-    minStock: Number(document.getElementById('f-min').value)||0,
+    unit: document.getElementById('f-unit')?.value || 'pcs',
+    stock: roundQty(Number(document.getElementById('f-stock').value)||0, document.getElementById('f-unit')?.value),
+    minStock: roundQty(Number(document.getElementById('f-min').value)||0, document.getElementById('f-unit')?.value),
     supplierId: document.getElementById('f-sup').value,
   };
   if(seesCostPrice()){
@@ -2059,8 +2097,8 @@ function renderPurchaseList(){
   const rows = list.map(p=>{
     const sup = state.suppliers.find(s=>s.id===p.supplierId);
     const items = p.items.map(i=> boss
-      ? `${escapeHtml(i.name)} ×${i.qty} (${fmtUsd(i.costUsd)})`
-      : `${escapeHtml(i.name)} ×${i.qty}`
+      ? `${escapeHtml(i.name)} ${itemQtyText(i)} (${fmtUsd(i.costUsd)})`
+      : `${escapeHtml(i.name)} ${itemQtyText(i)}`
     ).join(', ');
     // Audit chip: only the boss sees "edited by seller" — visual cue for any post-creation correction.
     const editedChip = (boss && p.editedBy === 'seller')
@@ -2136,7 +2174,7 @@ function renderPurchaseLines(){
       : '';
     return `<div class="purchase-line" style="grid-template-columns:${cols}">
       <select onchange="updatePurchaseLine(${idx},'productId',this.value)">${prodOpts.replace(`value="${line.productId}"`,`value="${line.productId}" selected`)}</select>
-      <input type="number" min="1" value="${line.qty}" onchange="updatePurchaseLine(${idx},'qty',this.value)" placeholder="${t('qty')}">
+      <input type="number" min="0" step="${qtyStep(productUnit(line.productId))}" value="${line.qty}" onchange="updatePurchaseLine(${idx},'qty',this.value)" placeholder="${unitLabel(productUnit(line.productId))}">
       ${costInput}
       <button class="danger" onclick="removePurchaseLine(${idx})" style="padding:4px 8px">×</button>
     </div>`;
@@ -2649,7 +2687,7 @@ function openInstallerHistory(id){
   const histNoMap = installNoMap();
   const rows = events.map(ev => {
     const j = ev.install;
-    const items = j ? (j.items||[]).map(it=>`${escapeHtml(it.name)} ×${it.qty}`).join(', ') : '';
+    const items = j ? (j.items||[]).map(it=>`${escapeHtml(it.name)} ${itemQtyText(it)}`).join(', ') : '';
     const car = j?.carModel || '';
     const carCell = car
       ? `${jobNoBadge(installNoOf(j, histNoMap))}<b>${escapeHtml(car)}</b>`
@@ -3015,7 +3053,7 @@ function viewInstalls(){
     const carCell = j.carModel
       ? `${no}<b>${escapeHtml(j.carModel)}</b>${pl}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
       : (payees.length ? no + payees.map(n=>`<b>${escapeHtml(n)}</b>`).join('<br>') + pl : no + '<span style="color:var(--muted)">—</span>' + pl);
-    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
     const payout = installPayoutTotals(j);
     const unpaid = (Number(j.amountUsd)||0) <= 0 && (Number(j.amountSom)||0) <= 0 && installCashlessSom(j) <= 0;
     const transferLine = [['paidTransfer', j.amountTransfer], ['paidClick', j.amountClick], ['paidTerminal', j.amountTerminal]]
@@ -3100,7 +3138,7 @@ function openInstall(id){
   // Carry name and price from the record itself: if the product has since been deleted from
   // the catalogue, the line still has everything needed to show and re-save it.
   installDraft = editing
-    ? (editing.items||[]).map(it => ({productId:it.productId, qty:it.qty, name:it.name, priceUsd:it.priceUsd}))
+    ? (editing.items||[]).map(it => ({productId:it.productId, qty:it.qty, name:it.name, priceUsd:it.priceUsd, unit:itemUnit(it)}))
     : [];
   const hasProducts = state.products.length>0;
   // A car that isn't in the list is kept as free text; the select shows "Other" and the
@@ -3213,12 +3251,16 @@ function renderInstallLines(){
       <button class="danger" onclick="removeInstallLine(${idx})" style="padding:4px 8px">×</button>
     </div>`;
     return `<div class="install-line">
-      <div><b>${escapeHtml(p.name)}</b><br><small style="color:var(--muted)">${fmtUsd(p.priceUsd)} · ${t('stockCol')}: ${p.stock}</small></div>
-      <div class="qty-ctrl" style="justify-content:center">
+      <div><b>${escapeHtml(p.name)}</b><br><small style="color:var(--muted)">${fmtUsd(p.priceUsd)} · ${t('stockCol')}: ${stockText(p)}</small></div>
+      ${isWholeUnit(p.unit) ? `<div class="qty-ctrl" style="justify-content:center">
         <button onclick="changeInstallQty(${idx},-1)">−</button>
         <span style="min-width:24px;text-align:center"><b>${line.qty}</b></span>
         <button onclick="changeInstallQty(${idx},1)">+</button>
-      </div>
+      </div>` : `<div class="qty-ctrl" style="justify-content:center">
+        <input type="number" step="${qtyStep(p.unit)}" min="0" value="${line.qty}"
+               onchange="setInstallQty(${idx},this.value)" style="width:74px;text-align:center">
+        <small style="color:var(--muted)">${unitLabel(p.unit)}</small>
+      </div>`}
       <div style="text-align:right">${fmtUsd(p.priceUsd*line.qty)}</div>
       <button class="danger" onclick="removeInstallLine(${idx})" style="padding:4px 8px">×</button>
     </div>`;
@@ -3255,13 +3297,28 @@ function addProductToInstall(pid){
   const p = state.products.find(x=>x.id===pid); if(!p) return;
   const existing = installDraft.find(l=>l.productId===pid);
   const budget = stockBudgetFor(pid);
+  // A click adds one piece — or one step of whatever the product is measured in, so hose
+  // starts at 0.1 m and is then typed exactly.
+  const u = productUnit(pid), step = qtyStep(u);
   if(existing){
-    if(existing.qty + 1 > budget){ alert(t('notEnoughStock')); return;}
-    existing.qty++;
+    if(roundQty(existing.qty + step, u) > budget){ alert(t('notEnoughStock')); return;}
+    existing.qty = roundQty(existing.qty + step, u);
   } else {
-    if(budget < 1){ alert(t('notEnoughStock')); return;}
-    installDraft.push({productId:pid, qty:1});
+    if(budget < step){ alert(t('notEnoughStock')); return;}
+    installDraft.push({productId:pid, qty:qtyMin(u), unit:u});
   }
+  renderInstallLines(); renderInstallPicker();
+}
+/* Typed directly for anything measured rather than counted: 3.5 m of hose. Rounded to the
+   unit, checked against what is really on the shelf, and a zero drops the line. */
+function setInstallQty(idx, v){
+  const line = installDraft[idx]; if(!line) return;
+  const u = productUnit(line.productId) || line.unit;
+  const next = roundQty(v, u);
+  if(next <= 0){ installDraft.splice(idx,1); renderInstallLines(); renderInstallPicker(); return; }
+  const budget = stockBudgetFor(line.productId);
+  if(next > budget){ alert(`${t('notEnoughStock')}: ${qtyText(budget, u)}`); renderInstallLines(); return; }
+  line.qty = next;
   renderInstallLines(); renderInstallPicker();
 }
 function changeInstallQty(idx, d){
@@ -3289,8 +3346,8 @@ function saveInstall(){
     const p = state.products.find(x=>x.id===l.productId);
     // Fall back to what the line already knows: a product deleted from the catalogue used to
     // throw here, which left the record un-editable — the dialog just sat there, saving nothing.
-    return p ? {productId:p.id, name:p.name, qty:l.qty, priceUsd:p.priceUsd}
-             : {productId:l.productId, name:l.name||'—', qty:l.qty, priceUsd:Number(l.priceUsd)||0};
+    return p ? {productId:p.id, name:p.name, qty:roundQty(l.qty, p.unit), priceUsd:p.priceUsd, unit:p.unit||'pcs'}
+             : {productId:l.productId, name:l.name||'—', qty:l.qty, priceUsd:Number(l.priceUsd)||0, unit:l.unit||'pcs'};
   });
   // Validate against the current stock plus any qty already allocated to THIS install (refundable on save).
   // A product that no longer exists has no stock to check, so it is left alone.
@@ -3459,7 +3516,7 @@ function viewIssues(){
     return `<tr class="${st!=='ok'?'unpaid':''}">
       <td>${i.date||''}</td>
       <td>${j?jobNoBadge(installNoOf(j, noMap)):''}<b>${escapeHtml(i.carModel||'—')}</b>${plateChip(i.plate||'')}</td>
-      <td style="font-size:12px;max-width:280px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ')||'—'}
+      <td style="font-size:12px;max-width:280px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ${itemQtyText(x)}`).join(', ')||'—'}
         ${(i.items||[]).length ? `<div style="color:var(--accent);font-weight:700;margin-top:2px">${
           (i.items||[]).reduce((s,x)=>s+(Number(x.qty)||0),0)} ${t('pcs')}
           <span style="color:var(--muted);font-weight:400">· ${(i.items||[]).length} ${t('kinds')}</span></div>` : ''}</td>
@@ -3486,7 +3543,7 @@ function viewIssues(){
 function openIssue(id){
   const ed = id ? (state.issues||[]).find(x=>x.id===id) : null;
   editingIssueId = ed ? ed.id : null;
-  issueDraft = ed ? (ed.items||[]).map(x=>({...x})) : [];
+  issueDraft = ed ? (ed.items||[]).map(x=>({...x, unit:itemUnit(x)})) : [];
   const carOpts = ['<option value="">—</option>'].concat(
     CAR_MODELS.filter(m=>m!=='Other').map(m=>`<option value="${escapeHtml(m)}"${ed&&ed.carModel===m?' selected':''}>${escapeHtml(m)}</option>`)).join('');
   modal(`
@@ -3523,9 +3580,10 @@ function renderIssueLines(){
   const lines = issueDraft.map((line,idx)=>{
     const p = state.products.find(x=>x.id===line.productId);
     return `<div class="install-line">
-      <div><b>${escapeHtml(line.name || (p?p.name:'—'))}</b>${p?`<br><small style="color:var(--muted)">${t('stockCol')}: ${p.stock}</small>`:''}</div>
+      <div><b>${escapeHtml(line.name || (p?p.name:'—'))}</b>${p?`<br><small style="color:var(--muted)">${t('stockCol')}: ${stockText(p)}</small>`:''}</div>
       <div class="qty-ctrl" style="justify-content:center">
-        <input type="number" min="1" step="1" value="${line.qty}" onchange="setIssueQty(${idx},this.value)" style="width:80px;text-align:center">
+        <input type="number" min="0" step="${qtyStep(line.unit)}" value="${line.qty}" onchange="setIssueQty(${idx},this.value)" style="width:74px;text-align:center">
+        <small style="color:var(--muted)">${unitLabel(line.unit)}</small>
       </div>
       <button class="danger" onclick="removeIssueLine(${idx})" style="padding:4px 10px">×</button>
     </div>`;
@@ -3552,11 +3610,16 @@ function renderIssuePicker(){
 function addIssueLine(productId){
   const p = state.products.find(x=>x.id===productId); if(!p) return;
   const line = issueDraft.find(l=>l.productId===productId);
-  if(line) line.qty += 1; else issueDraft.push({productId, name:p.name, qty:1});
+  const u = p.unit || 'pcs';
+  if(line) line.qty = roundQty(line.qty + qtyStep(u), u); else issueDraft.push({productId, name:p.name, qty:qtyMin(u), unit:u});
   renderIssueLines();
 }
 // Re-render so the counter follows the change; onchange fires on blur, so focus is not stolen.
-function setIssueQty(idx, v){ issueDraft[idx].qty = Math.max(1, Number(v)||1); renderIssueLines(); }
+function setIssueQty(idx, v){
+  const u = issueDraft[idx].unit;
+  issueDraft[idx].qty = Math.max(qtyMin(u), roundQty(v, u));
+  renderIssueLines();
+}
 function removeIssueLine(idx){ issueDraft.splice(idx,1); renderIssueLines(); }
 function saveIssue(){
   const date = document.getElementById('i-date').value || today();
@@ -3564,7 +3627,7 @@ function saveIssue(){
   const plate = (document.getElementById('i-plate')?.value||'').trim().toUpperCase().replace(/\s+/g,' ');
   const note = (document.getElementById('i-note')?.value||'').trim();
   if(!issueDraft.length){ alert(t('cartEmpty')); return; }
-  const items = issueDraft.map(l=>({productId:l.productId, name:l.name, qty:Number(l.qty)||0})).filter(l=>l.qty>0);
+  const items = issueDraft.map(l=>({productId:l.productId, name:l.name, qty:roundQty(l.qty, l.unit), unit:l.unit||'pcs'})).filter(l=>l.qty>0);
   state.issues = state.issues || [];
   const ed = editingIssueId ? state.issues.find(x=>x.id===editingIssueId) : null;
   if(ed){ Object.assign(ed, {date, carModel, plate, items, note}); }
@@ -3596,7 +3659,7 @@ function viewRecon(){
     const j = r.install, i = r.issue;
     const car = j ? `${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}`
                   : `<b>${escapeHtml(i.carModel||'—')}</b>${plateChip(i.plate||'')}`;
-    const list = items => (items||[]).map(x=>`${escapeHtml(x.name)} ×${x.qty}`).join(', ') || '—';
+    const list = items => (items||[]).map(x=>`${escapeHtml(x.name)} ${itemQtyText(x)}`).join(', ') || '—';
     const diffHtml = st === 'ok' ? `<span style="color:var(--pos)">✓</span>`
       : st === 'legacy' ? `<span style="color:var(--muted)">—</span>`
       : st === 'noIssue' ? `<span style="color:var(--hi)">${t('reconNoIssue')}</span>`
@@ -3645,7 +3708,7 @@ function viewDebts(){
   const total = list.reduce((s,j)=>s+(Number(j.debtSom)||0), 0);
   const noMap = installNoMap();
   const rows = list.map(j=>{
-    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
     return `<tr class="unpaid">
       <td>${j.date||''}</td>
       <td>${jobNoBadge(installNoOf(j, noMap))}<b>${escapeHtml(j.carModel||'—')}</b>${plateChip(plateOf(j))}</td>
@@ -3822,7 +3885,7 @@ function viewApprovals(){
     return parts.length ? parts.join(' <span style="color:var(--muted);margin:0 4px">·</span> ') : `<span style="color:var(--muted)">—</span>`;
   };
   const saleRows = sales.map(s => {
-    const items = (s.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const items = (s.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
     return `<tr>
       <td>${(s.date||'').slice(0,10)}</td>
       <td style="font-size:12px">${items||'—'}</td>
@@ -3832,7 +3895,7 @@ function viewApprovals(){
   }).join('');
   const apprNoMap = installNoMap();
   const installRows = installs.map(j => {
-    const items = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const items = (j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
     // The amounts above are the job's lifetime totals; list the debt repayments separately
     // so the accountant can tell which money is new and which was verified long ago.
     const methodName = m => m==='som' ? t('cashSom') : m==='usd' ? 'USD'
@@ -3894,7 +3957,7 @@ function approvedHistory(){
   const out = [];
   const push = (rec, kind, what, som, usd, transfer) => out.push({rec, kind, what, som, usd, transfer});
   (state.sales||[]).forEach(s => { if(s.approvedAt) push(s, t('sales'),
-      (s.items||[]).map(i=>i.name+' ×'+i.qty).join(', '), s.paidSom, s.paidUsd, s.paidTransfer); });
+      (s.items||[]).map(i=>i.name+' '+itemQtyText(i)).join(', '), s.paidSom, s.paidUsd, s.paidTransfer); });
   (state.installs||[]).forEach(j => { if(j.approvedAt) push(j, t('installs'),
       (j.carModel||'—') + (plateOf(j)?' · '+plateOf(j):''), j.amountSom, j.amountUsd, j.amountTransfer); });
   (state.expenses||[]).forEach(e => { if(e.approvedAt) push(e, t('expenses'),
@@ -4109,7 +4172,7 @@ function viewDashboard(){
             const carCell = j.carModel
               ? `${no}<b>${escapeHtml(j.carModel)}</b>${plateChip(plateOf(j))}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
               : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '<span style="color:var(--muted)">—</span>');
-            const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+            const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
             const payout = installPayoutTotals(j);
             return `<tr>
               <td>${j.date}</td>
@@ -4344,7 +4407,7 @@ function renderArchiveBody(){
     const carCell = j.carModel
       ? `${no}<b>${escapeHtml(j.carModel)}</b>${plateChip(plateOf(j))}${payees.length?`<br><small style="color:var(--muted)">${payees.map(escapeHtml).join(', ')}</small>`:''}`
       : (payees.length ? no+`<b>${payees.map(escapeHtml).join(', ')}</b>` : '—');
-    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');
+    const itemsStr = (j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');
     const payout = installPayoutTotals(j);
     return `<tr>
       <td>${j.date}</td>
@@ -4417,7 +4480,7 @@ function downloadArchiveHtml(){
   // Standalone file: it carries its own CSS, so the per-day number is styled inline here.
   const htmlNoMap = installNoMap();
   const noTag = n => n ? `<span style="display:inline-block;padding:1px 5px;border-radius:5px;font-size:11px;font-weight:800;background:#d9f5e1;color:#15803d;border:1px solid #9fdcb4;margin-right:5px">№${n}</span>` : '';
-  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td>${noTag(installNoOf(j, htmlNoMap))}<b>${escapeHtml(j.carModel||'')}${j.carModel&&names?' · ':''}${names||(j.carModel?'':'?')}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${(pay => dualCell(pay.som, pay.usd))(installPayoutTotals(j))}</td></tr>`;}).join('');
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ${itemQtyText(i)}`).join(', ');return `<tr><td>${j.date}</td><td>${noTag(installNoOf(j, htmlNoMap))}<b>${escapeHtml(j.carModel||'')}${j.carModel&&names?' · ':''}${names||(j.carModel?'':'?')}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${(pay => dualCell(pay.som, pay.usd))(installPayoutTotals(j))}</td></tr>`;}).join('');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gazmetprod report ${range}</title><style>${css}</style></head><body>
     <h1>Gazmetprod — ${t('archive')}</h1>
     <div class="muted">${t('period')}: ${range} · ${t('generated')}: ${new Date().toLocaleString()}</div>
@@ -4907,7 +4970,7 @@ function downloadExcelReport(allTime){
       const last = (k === parts.length-1) && !tailRows;
       const carry = (parts.length>1 || tailRows) ? (last ? XLS.mergeEnd : XLS.mergeMid) : null;
       put(pad(k===0
-        ? [S(carCell,st.car), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
+        ? [S(carCell,st.car), S(it.name + (isWholeUnit(itemUnit(it)) ? (it.qty>1?' x'+it.qty:'') : ' — ' + itemQtyText(it)), st.part), S(usdToSom(costOf(it)),st.cost),
            S(payoutTxt,st.payout),
            // A repayment is shown with the date it came in, so the car line explains why the
            // day it was fitted counts less money than the client eventually paid.
@@ -4917,7 +4980,7 @@ function downloadExcelReport(allTime){
                         + String(r.date||'').slice(8,10) + '.' + String(r.date||'').slice(5,7)).join(''),
              st.cell),
            S(spend,st.rev), S(revenue-spend, revenue-spend>=0 ? (b?XLS.profitB:XLS.profit) : XLS.expMoney)]
-        : [S('',carry), S(it.name+(it.qty>1?' x'+it.qty:''),st.part), S(usdToSom(costOf(it)),st.cost),
+        : [S('',carry), S(it.name + (isWholeUnit(itemUnit(it)) ? (it.qty>1?' x'+it.qty:'') : ' — ' + itemQtyText(it)), st.part), S(usdToSom(costOf(it)),st.cost),
            S('',carry), S('',carry), S('',carry), S('',carry)], 0), k===0 ? 20+shortfall : 20);
     });
     if(hasExtra){
@@ -5158,7 +5221,7 @@ function downloadExcelReport(allTime){
     ['Дата','Проданные товары','Кассир','Форма оплаты','Получено от клиента','','Сумма (сум)'],
     [...d.sales].sort((a,b)=>b.date.localeCompare(a.date)).map(s=>[
       new Date(s.date).toLocaleDateString('ru-RU'),
-      (s.items||[]).map(i=>i.name+' ×'+i.qty).join(', '),
+      (s.items||[]).map(i=>i.name+' '+itemQtyText(i)).join(', '),
       s.cashier||'', payMethodLabelRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal),
       moneyTextRu(s.paidUsd,s.paidSom,s.paidTransfer,s.paidClick,s.paidTerminal), '',
       usdToSom(s.totalUsd||0)]), 6);
@@ -5168,7 +5231,7 @@ function downloadExcelReport(allTime){
      expenses above instead, so nothing appears twice. */
   const purchaseRows = d.purchases.map(p => {
     const sup = state.suppliers.find(s=>s.id===p.supplierId);
-    return {date:p.date||'', what:(p.items||[]).map(i=>i.name+' ×'+i.qty).join(', ') || (p.note||'—'),
+    return {date:p.date||'', what:(p.items||[]).map(i=>i.name+' '+itemQtyText(i)).join(', ') || (p.note||'—'),
             who: sup?sup.name:'—', som: usdToSom(p.totalUsd||0)};
   }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   plainBlock('Закупки со страницы «Закупки» — платит босс сам, из кассы не удерживается',
