@@ -445,6 +445,8 @@ const LOCALES = {
     unpaid:'Unpaid',
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
+    productGone:'product deleted from the catalogue — kept on this car',
+    productInUse:'This product is already on {n} record(s). Deleting it keeps it on those cars but removes it from the catalogue. Delete anyway?',
     plate:'Plate number', plateHint:'01A123BC',
     extrasDefault:'Standard "other materials" per car (som)',
     extrasDefaultDesc:'Pre-fills the field on a new install. Change it on the car itself whenever it differs — this is only the starting number. 0 leaves the field empty.',
@@ -607,6 +609,8 @@ const LOCALES = {
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
+    productGone:'товар удалён из справочника — на этой машине сохранён',
+    productInUse:'Этот товар уже стоит в {n} записях. После удаления он останется на тех машинах, но исчезнет из справочника. Всё равно удалить?',
     plate:'Гос. номер', plateHint:'01A123BC',
     extrasDefault:'Прочие материалы — сумма по умолчанию (сум)',
     extrasDefaultDesc:'Подставляется в новую установку. На конкретной машине сумму можно изменить — это только начальное значение. 0 — поле будет пустым.',
@@ -769,6 +773,8 @@ const LOCALES = {
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
+    productGone:'mahsulot katalogdan o\'chirilgan — bu mashinada saqlanib qolgan',
+    productInUse:'Bu mahsulot allaqachon {n} ta yozuvda bor. O\'chirilsa, o\'sha mashinalarda qoladi, lekin katalogdan yo\'qoladi. Baribir o\'chirilsinmi?',
     plate:'Davlat raqami', plateHint:'01A123BC',
     extrasDefault:"Boshqa materiallar — standart summa (so'm)",
     extrasDefaultDesc:"Yangi o'rnatishga o'zi qo'yiladi. Har mashinada summani o'zgartirish mumkin — bu faqat boshlang'ich qiymat. 0 — maydon bo'sh qoladi.",
@@ -1876,7 +1882,13 @@ function restock(id){
   save(); viewProducts();
 }
 function delProduct(id){
-  if(!confirm(t('confirmDelete'))) return;
+  // Deleting a product that is already on cars leaves those records pointing at nothing.
+  // They stay editable now, but the boss should still know what he is about to do.
+  const usedOn = state.installs.filter(j => (j.items||[]).some(i => i.productId === id)).length
+               + state.sales.filter(s => (s.items||[]).some(i => i.productId === id)).length;
+  if(usedOn > 0){
+    if(!confirm(t('productInUse').replace('{n}', usedOn))) return;
+  } else if(!confirm(t('confirmDelete'))) return;
   state.products = state.products.filter(x=>x.id!==id); save(); viewProducts();
 }
 function openDefective(productId){
@@ -3085,7 +3097,11 @@ function stockBudgetFor(productId){
 function openInstall(id){
   const editing = id ? state.installs.find(j=>j.id===id) : null;
   editingInstallId = editing ? editing.id : null;
-  installDraft = editing ? (editing.items||[]).map(it => ({productId:it.productId, qty:it.qty})) : [];
+  // Carry name and price from the record itself: if the product has since been deleted from
+  // the catalogue, the line still has everything needed to show and re-save it.
+  installDraft = editing
+    ? (editing.items||[]).map(it => ({productId:it.productId, qty:it.qty, name:it.name, priceUsd:it.priceUsd}))
+    : [];
   const hasProducts = state.products.length>0;
   // A car that isn't in the list is kept as free text; the select shows "Other" and the
   // typed name is what actually gets saved, so the report never just says "Other".
@@ -3186,7 +3202,16 @@ function renderInstallLines(){
   }
   const lines = installDraft.map((line,idx)=>{
     const p = state.products.find(x=>x.id===line.productId);
-    if(!p) return '';
+    // A product deleted from the catalogue after the car was written up: show the line from
+    // what the record itself remembers instead of hiding it, or the item silently disappears
+    // from the form and the whole save fails.
+    if(!p) return `<div class="install-line">
+      <div><b>${escapeHtml(line.name||'—')}</b><br><small style="color:var(--hi)">${t('productGone')}</small></div>
+      <div class="qty-ctrl" style="justify-content:center">
+        <input type="number" min="1" step="1" value="${line.qty}" onchange="setInstallQty(${idx},this.value)" style="width:80px;text-align:center">
+      </div>
+      <button class="danger" onclick="removeInstallLine(${idx})" style="padding:4px 8px">×</button>
+    </div>`;
     return `<div class="install-line">
       <div><b>${escapeHtml(p.name)}</b><br><small style="color:var(--muted)">${fmtUsd(p.priceUsd)} · ${t('stockCol')}: ${p.stock}</small></div>
       <div class="qty-ctrl" style="justify-content:center">
@@ -3262,11 +3287,16 @@ function saveInstall(){
   const editing = editingInstallId ? state.installs.find(j=>j.id===editingInstallId) : null;
   const items = installDraft.filter(l=>l.productId && l.qty>0).map(l=>{
     const p = state.products.find(x=>x.id===l.productId);
-    return {productId:p.id, name:p.name, qty:l.qty, priceUsd:p.priceUsd};
+    // Fall back to what the line already knows: a product deleted from the catalogue used to
+    // throw here, which left the record un-editable — the dialog just sat there, saving nothing.
+    return p ? {productId:p.id, name:p.name, qty:l.qty, priceUsd:p.priceUsd}
+             : {productId:l.productId, name:l.name||'—', qty:l.qty, priceUsd:Number(l.priceUsd)||0};
   });
   // Validate against the current stock plus any qty already allocated to THIS install (refundable on save).
+  // A product that no longer exists has no stock to check, so it is left alone.
   for(const it of items){
     const p = state.products.find(x=>x.id===it.productId);
+    if(!p) continue;
     const budget = stockBudgetFor(it.productId);
     if(it.qty > budget){ alert(`${t('notEnoughStock')}: ${p.name} (${budget})`); return;}
   }
@@ -4216,7 +4246,13 @@ function archiveData(range){
   const opExpUsd = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountUsd||0),0);
   const opExpSom = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountSom||0),0);
   const profit = totalRev - cogs - (opExp - handPurchUsd);
-  const installerPayTotal = installs.reduce((s,j)=>s+installerPayUsd(j),0);
+  // Wages live in installation_pay expenses, not in fields on the install — installerPayUsd
+  // reads only the old inline fields, so this card printed $0.00 while the table under it
+  // listed tens of millions. installPayoutTotals merges both, exactly like the table does.
+  const installerPayTotal = installs.reduce((s,j)=>{
+    const p = installPayoutTotals(j);
+    return s + p.usd + somToUsd(p.som);
+  }, 0);
   const purchaseTotal = purchases.reduce((s,p)=>s+(p.totalUsd||0),0);
   // products sold aggregate
   const soldMap = {};
@@ -4381,7 +4417,7 @@ function downloadArchiveHtml(){
   // Standalone file: it carries its own CSS, so the per-day number is styled inline here.
   const htmlNoMap = installNoMap();
   const noTag = n => n ? `<span style="display:inline-block;padding:1px 5px;border-radius:5px;font-size:11px;font-weight:800;background:#d9f5e1;color:#15803d;border:1px solid #9fdcb4;margin-right:5px">№${n}</span>` : '';
-  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td>${noTag(installNoOf(j, htmlNoMap))}<b>${escapeHtml(j.carModel||'')}${j.carModel&&names?' · ':''}${names||(j.carModel?'':'?')}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${dualCell(installerPaySomTotal(j), installerPayUsdTotal(j))}</td></tr>`;}).join('');
+  const installRows = [...d.installs].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(j=>{const names=jobInstallers(j).map(a=>{const inst=state.installers.find(i=>i.id===a.installerId);return inst?escapeHtml(inst.name):'?';}).join(', ');const itemsStr=(j.items||[]).map(i=>`${escapeHtml(i.name)} ×${i.qty}`).join(', ');return `<tr><td>${j.date}</td><td>${noTag(installNoOf(j, htmlNoMap))}<b>${escapeHtml(j.carModel||'')}${j.carModel&&names?' · ':''}${names||(j.carModel?'':'?')}</b></td><td>${itemsStr||'—'}</td><td>${dualCell(j.amountSom||0, j.amountUsd||0)}</td><td>${(pay => dualCell(pay.som, pay.usd))(installPayoutTotals(j))}</td></tr>`;}).join('');
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gazmetprod report ${range}</title><style>${css}</style></head><body>
     <h1>Gazmetprod — ${t('archive')}</h1>
     <div class="muted">${t('period')}: ${range} · ${t('generated')}: ${new Date().toLocaleString()}</div>
