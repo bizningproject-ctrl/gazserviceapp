@@ -451,6 +451,9 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     salesShort:'Sales',
+    kitAuto:'set for this car filled in — edit as needed',
+    kitPick:'Fill in a set:', kitReplace:'Replace what is written',
+    kitNoneForCar:'no set for this car yet',
     kits:'Sets', kitsDesc:'A ready list of parts for a car — pick it and everything is filled in at once, then edit as needed.',
     newKit:'+ New set', kitName:'Set name', kitNameHint:'Cobalt Metan',
     kitParts:'Parts in the set', useKit:'Take a set', kitSaveAs:'Save as a set',
@@ -622,6 +625,9 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     salesShort:'Продажи',
+    kitAuto:'комплект на эту машину подставлен — поправьте, если надо',
+    kitPick:'Подставить комплект:', kitReplace:'Заменить набранное',
+    kitNoneForCar:'на эту машину комплекта пока нет',
     kits:'Комплекты', kitsDesc:'Готовый список деталей на машину — выбрали, и всё подставилось разом, потом можно поправить.',
     newKit:'+ Новый комплект', kitName:'Название комплекта', kitNameHint:'Cobalt Metan',
     kitParts:'Детали в комплекте', useKit:'Взять комплект', kitSaveAs:'Сохранить как комплект',
@@ -793,6 +799,9 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     salesShort:'Sotuvlar',
+    kitAuto:'bu mashina uchun toplam qoʻyildi — kerak boʻlsa tahrirlang',
+    kitPick:'Toplamni qoʻyish:', kitReplace:'Yozilganini almashtirish',
+    kitNoneForCar:'bu mashina uchun hali toplam yoʻq',
     kits:'Toplamlar', kitsDesc:"Mashina uchun tayyor detallar roʻyxati — tanlaysiz va hammasi birdan qoʻyiladi, keyin tahrirlash mumkin.",
     newKit:'+ Yangi toplam', kitName:'Toplam nomi', kitNameHint:'Cobalt Metan',
     kitParts:'Toplamdagi detallar', useKit:'Toplamni olish', kitSaveAs:'Toplam sifatida saqlash',
@@ -3179,8 +3188,10 @@ function openInstall(id){
     <h3>${editing ? t('editJob') : t('logJob')}</h3>
     <div class="row">
       <div class="col"><label>${t('date')}</label><input id="j-date" type="date" value="${editing?editing.date:today()}"></div>
-      <div class="col"><label>${t('carModel')}</label><select id="j-car" onchange="toggleCustomCar()">${carOpts}</select></div>
+      <div class="col"><label>${t('carModel')}</label>
+        <select id="j-car" onchange="toggleCustomCar(); autoKit('install')">${carOpts}</select></div>
     </div>
+    <div id="j-kit-note"></div>
     <div id="j-car-other-wrap" style="margin-top:8px;${showOther?'':'display:none'}">
       <label>${t('carModelOther')}</label>
       <input id="j-car-other" type="text" placeholder="${t('carModelOtherHint')}" value="${escapeHtml(customCar)}">
@@ -3190,7 +3201,6 @@ function openInstall(id){
       <input id="j-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
              value="${editing?escapeAttr(plateOf(editing)):''}">
     </div>
-    ${kitPickerHtml('applyKitToInstall')}
     <label style="margin-top:12px">${t('items')}</label>
     <div id="j-items"></div>
     ${hasProducts?`
@@ -3332,7 +3342,7 @@ function addProductToInstall(pid){
     if(budget < step){ alert(t('notEnoughStock')); return;}
     installDraft.push({productId:pid, qty:qtyMin(u), unit:u});
   }
-  renderInstallLines(); renderInstallPicker();
+  renderInstallLines(); renderInstallPicker(); autoKit('install');
 }
 /* Typed directly for anything measured rather than counted: 3.5 m of hose. Rounded to the
    unit, checked against what is really on the shelf, and a zero drops the line. */
@@ -3654,6 +3664,33 @@ function delKit(id){
 }
 /* Dropdown shared by the issue form and the install form. Choosing a kit ADDS its parts to
    whatever is already in the form, so two kits can be combined and every line stays editable. */
+/* Choosing the car is the trigger: pick Cobalt and the parts for a Cobalt appear. Rules that
+   keep it from being annoying or destructive:
+     - nothing typed yet and one set for that car  -> filled in silently, with a note
+     - several sets for that car                    -> one click each, no guessing
+     - something already typed                      -> never overwritten; offered instead
+   The note sits right under the car field in both forms, so it is read where it happened. */
+const kitsForCar = model => (state.kits||[]).filter(k => k.carModel && k.carModel === model);
+function autoKit(which){
+  const isIssue = which === 'issue';
+  const note = document.getElementById(isIssue ? 'i-kit-note' : 'j-kit-note');
+  if(!note) return;
+  const model = document.getElementById(isIssue ? 'i-car' : 'j-car')?.value || '';
+  const draft = isIssue ? issueDraft : installDraft;
+  const kits = kitsForCar(model);
+  note.innerHTML = '';
+  if(!model || !kits.length) return;
+  const apply = isIssue ? 'applyKitToIssue' : 'applyKitToInstall';
+  const chip = (k, label) => `<button onclick="${apply}('${k.id}'); autoKit('${which}')" style="padding:4px 10px;margin:2px 4px 2px 0">${escapeHtml(label)}</button>`;
+  if(!draft.length && kits.length === 1){
+    window[apply](kits[0].id);
+    note.innerHTML = `<div style="margin-top:6px;color:var(--pos);font-size:12px">
+      ✓ <b>${escapeHtml(kits[0].name)}</b> — ${t('kitAuto')}</div>`;
+    return;
+  }
+  note.innerHTML = `<div style="margin-top:6px;font-size:12px;color:var(--muted)">${t('kitPick')}
+    ${kits.map(k => chip(k, k.name + ' · ' + (k.items||[]).length)).join('')}</div>`;
+}
 function kitPickerHtml(fnName){
   const kits = [...(state.kits||[])].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
   if(!kits.length) return '';
@@ -3724,14 +3761,15 @@ function openIssue(id){
     <h3>${t('issueTitle')}</h3>
     <div class="row">
       <div class="col"><label>${t('date')}</label><input id="i-date" type="date" value="${ed?ed.date:today()}"></div>
-      <div class="col"><label>${t('carModel')}</label><select id="i-car">${carOpts}</select></div>
+      <div class="col"><label>${t('carModel')}</label>
+        <select id="i-car" onchange="autoKit('issue')">${carOpts}</select></div>
     </div>
+    <div id="i-kit-note"></div>
     <div style="margin-top:8px">
       <label>${t('plate')}</label>
       <input id="i-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
              value="${ed?escapeAttr(ed.plate||''):''}">
     </div>
-    ${kitPickerHtml('applyKitToIssue')}
     <label style="margin-top:12px">${t('issuedParts')}</label>
     <div id="i-items"></div>
     <div style="margin-top:10px;padding:10px;background:var(--panel2);border-radius:8px">
@@ -3747,7 +3785,7 @@ function openIssue(id){
         <button class="primary" onclick="saveIssue()">${t('save')}</button>
       </span>
     </div>`);
-  renderIssueLines(); renderIssuePicker();
+  renderIssueLines(); renderIssuePicker(); autoKit('issue');
 }
 function renderIssueLines(){
   const box = document.getElementById('i-items'); if(!box) return;
