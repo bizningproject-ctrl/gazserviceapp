@@ -451,6 +451,10 @@ const LOCALES = {
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
     salesShort:'Sales',
+    issuePurpose:'What for', purposeCar:'For a car', purposeSale:'For sale',
+    forSale:'Given out to sell', newForSale:'+ Give out to sell',
+    givenTo:'Given to', givenToHint:'the seller, the counter…',
+    forSaleHint:'What the storekeeper handed over for selling. Stock moves when the sale itself is recorded, not here.',
     kitAuto:'set for this car filled in — edit as needed',
     kitPick:'Fill in a set:', kitReplace:'Replace what is written',
     kitNoneForCar:'no set for this car yet',
@@ -625,6 +629,10 @@ const LOCALES = {
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
     salesShort:'Продажи',
+    issuePurpose:'Для чего', purposeCar:'На машину', purposeSale:'На продажу',
+    forSale:'Выдано на продажу', newForSale:'+ Выдать на продажу',
+    givenTo:'Кому выдано', givenToHint:'продавцу, в магазин…',
+    forSaleHint:'Что кладовщик выдал для продажи. Со склада списывается сама продажа, а не эта запись.',
     kitAuto:'комплект на эту машину подставлен — поправьте, если надо',
     kitPick:'Подставить комплект:', kitReplace:'Заменить набранное',
     kitNoneForCar:'на эту машину комплекта пока нет',
@@ -799,6 +807,10 @@ const LOCALES = {
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
     salesShort:'Sotuvlar',
+    issuePurpose:'Nima uchun', purposeCar:'Mashinaga', purposeSale:'Sotuvga',
+    forSale:'Sotuvga berilgan', newForSale:'+ Sotuvga berish',
+    givenTo:'Kimga berildi', givenToHint:'sotuvchiga, doʻkonga…',
+    forSaleHint:'Omborchi sotish uchun bergani. Ombordan sotuvning oʻzi yechadi, bu yozuv emas.',
     kitAuto:'bu mashina uchun toplam qoʻyildi — kerak boʻlsa tahrirlang',
     kitPick:'Toplamni qoʻyish:', kitReplace:'Yozilganini almashtirish',
     kitNoneForCar:'bu mashina uchun hali toplam yoʻq',
@@ -944,6 +956,8 @@ const DEFAULT_STATE = {
   // Ready lists of parts for a kind of car — "Cobalt Metan" and the like. Picking one fills
   // an issue or an install in a single step; the lines stay editable afterwards.
   kits: [],       // {id,name,carModel,items:[{productId,name,qty,unit}],used}
+  // An issue is either for a car (matched against the install on the Сверка page) or handed
+  // over to be sold — purpose:'sale', which carries no car and is never reconciled.
   // Available car models for installs (Uzbekistan-popular)
   // Stored as a free string `carModel` on each install
   // edited via the dropdown defined in CAR_MODELS
@@ -2377,11 +2391,44 @@ function viewSales(){
   const colspan = boss ? 9 : 8;
   V().innerHTML = `
     ${kpis}
+    ${forSaleBlock()}
     <div class="card" style="padding:0;margin-top:12px">
     <table>
       <thead><tr><th>${t('date')}</th><th>${t('items')}</th><th>${t('total')}</th><th>${t('paidUsd')}</th><th>${t('paidSom')}</th><th>${t('paidTransfer')}</th><th>${t('paidClick')}</th><th>${t('paidTerminal')}</th>${boss?'<th></th>':''}</tr></thead>
       <tbody>${rows||`<tr><td colspan="${colspan}" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
+}
+/* What the storekeeper handed over to be sold, kept next to what was actually sold so the
+   two can be read against each other. Stock is moved by the sale itself, never by this
+   record — otherwise the same goods would leave the shelf twice. */
+function forSaleBlock(){
+  if(!(isBoss() || isWarehouse())) return '';
+  const list = (state.issues||[]).filter(i => (i.purpose||'car') === 'sale')
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const rows = list.map(i=>`<tr>
+      <td>${i.date||''}</td>
+      <td style="font-size:12px;max-width:320px">${(i.items||[]).map(x=>`${escapeHtml(x.name)} ${itemQtyText(x)}`).join(', ')||'—'}
+        <div style="color:var(--accent);font-weight:700;margin-top:2px">${(i.items||[]).reduce((s,x)=>s+(Number(x.qty)||0),0)} ${t('pcs')}
+          <span style="color:var(--muted);font-weight:400">· ${(i.items||[]).length} ${t('kinds')}</span></div></td>
+      <td>${escapeHtml(i.givenTo||'—')}</td>
+      <td style="font-size:12px;color:var(--muted)">${escapeHtml(i.note||'')}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button onclick="openIssue('${i.id}')">${t('edit')}</button>
+        <button class="danger" onclick="delIssue('${i.id}')" style="margin-left:6px">${t('del')}</button>
+      </td>
+    </tr>`).join('');
+  return `
+    <div class="card" style="margin-top:12px;padding:0">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><b>${t('forSale')}: ${list.length}</b>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">${t('forSaleHint')}</div></div>
+        <button class="primary" onclick="openIssue(null,'sale')">${t('newForSale')}</button>
+      </div>
+      <table>
+        <thead><tr><th>${t('date')}</th><th>${t('issuedParts')}</th><th>${t('givenTo')}</th><th>${t('note')}</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px">${t('noData')}</td></tr>`}</tbody>
+      </table>
+    </div>`;
 }
 function delSale(id){
   if(!confirm(t('confirmDelete'))) return;
@@ -3505,10 +3552,12 @@ function reconRows(range){
   const inR = d => range ? inRange(d, range) : true;
   const rows = [];
   const usedIssues = new Set();
+  // Goods handed over to be sold have no car and must never show up as "нет установки".
+  const carIssues = (state.issues||[]).filter(i => (i.purpose||'car') !== 'sale');
   state.installs.filter(j => inR(j.date)).forEach(j => {
     const pk = plateKey(plateOf(j));
     // Match on the plate; without one, fall back to the same car model on the same day.
-    const issue = (state.issues||[]).find(i => !usedIssues.has(i.id) && (
+    const issue = carIssues.find(i => !usedIssues.has(i.id) && (
       (pk && plateKey(i.plate) === pk) ||
       (!pk && !plateKey(i.plate) && String(i.carModel||'') === String(j.carModel||'')
            && String(i.date||'').slice(0,10) === String(j.date||'').slice(0,10))));
@@ -3516,7 +3565,7 @@ function reconRows(range){
     rows.push({install:j, issue, diffs: issue ? diffItems(j.items, issue.items) : null});
   });
   // Issues nobody fitted: the storekeeper gave parts out for a car that has no install.
-  (state.issues||[]).filter(i => inR(i.date) && !usedIssues.has(i.id)).forEach(issue => {
+  carIssues.filter(i => inR(i.date) && !usedIssues.has(i.id)).forEach(issue => {
     rows.push({install:null, issue, diffs:null});
   });
   return rows.sort((a,b) => String((b.install||b.issue).date||'').localeCompare(String((a.install||a.issue).date||'')));
@@ -3707,7 +3756,9 @@ function noteKitUsed(k){ if(k) k.used = (Number(k.used)||0) + 1; }
 let issueDraft = [];      // parts being written on the current issue form
 let editingIssueId = null;
 function viewIssues(){
-  const list = [...(state.issues||[])].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  // This page is about cars; what went out to be sold lives on the Продажи page.
+  const list = [...(state.issues||[])].filter(i => (i.purpose||'car') !== 'sale')
+    .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   const noMap = installNoMap();
   // Built once, not per row — otherwise every row re-matches the whole warehouse.
   const recon = reconRows(null);
@@ -3751,8 +3802,10 @@ function viewIssues(){
       <tbody>${rows || `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">${t('noData')}</td></tr>`}</tbody>
     </table></div>`;
 }
-function openIssue(id){
+function openIssue(id, forcePurpose){
   const ed = id ? (state.issues||[]).find(x=>x.id===id) : null;
+  // Opened from the sales page it is a hand-over to sell; from the warehouse page, a car.
+  const purpose = forcePurpose || (ed && ed.purpose) || 'car';
   editingIssueId = ed ? ed.id : null;
   issueDraft = ed ? (ed.items||[]).map(x=>({...x, unit:itemUnit(x)})) : [];
   const carOpts = ['<option value="">—</option>'].concat(
@@ -3761,14 +3814,24 @@ function openIssue(id){
     <h3>${t('issueTitle')}</h3>
     <div class="row">
       <div class="col"><label>${t('date')}</label><input id="i-date" type="date" value="${ed?ed.date:today()}"></div>
+      <div class="col"><label>${t('issuePurpose')}</label>
+        <select id="i-purpose" onchange="issuePurposeChanged()">
+          <option value="car"${purpose!=='sale'?' selected':''}>${t('purposeCar')}</option>
+          <option value="sale"${purpose==='sale'?' selected':''}>${t('purposeSale')}</option>
+        </select></div>
+    </div>
+    <div id="i-car-block" class="row" style="margin-top:8px">
       <div class="col"><label>${t('carModel')}</label>
         <select id="i-car" onchange="autoKit('issue')">${carOpts}</select></div>
+      <div class="col"><label>${t('plate')}</label>
+        <input id="i-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
+               value="${ed?escapeAttr(ed.plate||''):''}"></div>
     </div>
     <div id="i-kit-note"></div>
-    <div style="margin-top:8px">
-      <label>${t('plate')}</label>
-      <input id="i-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
-             value="${ed?escapeAttr(ed.plate||''):''}">
+    <div id="i-sale-block" style="margin-top:8px">
+      <label>${t('givenTo')}</label>
+      <input id="i-to" type="text" placeholder="${t('givenToHint')}" value="${ed?escapeAttr(ed.givenTo||''):''}">
+      <small style="color:var(--muted);font-size:11px">${t('forSaleHint')}</small>
     </div>
     <label style="margin-top:12px">${t('issuedParts')}</label>
     <div id="i-items"></div>
@@ -3785,7 +3848,18 @@ function openIssue(id){
         <button class="primary" onclick="saveIssue()">${t('save')}</button>
       </span>
     </div>`);
-  renderIssueLines(); renderIssuePicker(); autoKit('issue');
+  renderIssueLines(); renderIssuePicker(); issuePurposeChanged();
+}
+/* A hand-over to sell has no car and no plate; a car issue has no "given to". Only one set
+   of fields is on screen at a time, so the form never asks for something it does not need. */
+function issuePurposeChanged(){
+  const sale = (document.getElementById('i-purpose')?.value || 'car') === 'sale';
+  const carBlock = document.getElementById('i-car-block');
+  const saleBlock = document.getElementById('i-sale-block');
+  const note = document.getElementById('i-kit-note');
+  if(carBlock) carBlock.style.display = sale ? 'none' : '';
+  if(saleBlock) saleBlock.style.display = sale ? '' : 'none';
+  if(note){ note.innerHTML = ''; if(!sale) autoKit('issue'); }
 }
 function renderIssueLines(){
   const box = document.getElementById('i-items'); if(!box) return;
@@ -3861,22 +3935,28 @@ function saveIssueAsKit(){
 }
 function saveIssue(){
   const date = document.getElementById('i-date').value || today();
-  const carModel = document.getElementById('i-car')?.value || '';
-  const plate = (document.getElementById('i-plate')?.value||'').trim().toUpperCase().replace(/\s+/g,' ');
+  const purpose = document.getElementById('i-purpose')?.value || 'car';
+  const sale = purpose === 'sale';
+  const carModel = sale ? '' : (document.getElementById('i-car')?.value || '');
+  const plate = sale ? '' : (document.getElementById('i-plate')?.value||'').trim().toUpperCase().replace(/\s+/g,' ');
+  const givenTo = sale ? (document.getElementById('i-to')?.value||'').trim() : '';
   const note = (document.getElementById('i-note')?.value||'').trim();
   if(!issueDraft.length){ alert(t('cartEmpty')); return; }
   const items = issueDraft.map(l=>({productId:l.productId, name:l.name, qty:roundQty(l.qty, l.unit), unit:l.unit||'pcs'})).filter(l=>l.qty>0);
   state.issues = state.issues || [];
   const ed = editingIssueId ? state.issues.find(x=>x.id===editingIssueId) : null;
-  if(ed){ Object.assign(ed, {date, carModel, plate, items, note}); }
-  else { state.issues.push({id:uid(), date, carModel, plate, items, note, by:role}); }
+  if(ed){ Object.assign(ed, {date, carModel, plate, items, note, purpose, givenTo}); }
+  else { state.issues.push({id:uid(), date, carModel, plate, items, note, purpose, givenTo, by:role}); }
   editingIssueId = null; issueDraft = [];
-  save(); closeModal(); viewIssues();
+  save(); closeModal();
+  // A hand-over to sell belongs to the Продажи page; a car issue to the warehouse page.
+  if(currentNav === 'sales') viewSales(); else viewIssues();
 }
 function delIssue(id){
   if(!confirm(t('confirmDelete'))) return;
   state.issues = (state.issues||[]).filter(x=>x.id!==id);
-  save(); viewIssues();
+  save();
+  if(currentNav === 'sales') viewSales(); else viewIssues();
 }
 
 let reconOnlyProblems = true;
