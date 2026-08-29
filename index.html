@@ -1340,7 +1340,8 @@ const NAV_ALL = [
   {id:'pos', key:'sell', fn:()=>viewPOS(), roles:['seller']},
   {id:'products', key:'products', fn:()=>viewProducts(), roles:['boss','seller','warehouse']},
   {id:'suppliers', key:'suppliers', fn:()=>viewSuppliers(), roles:['boss','seller']},
-  {id:'purchases', key:'purchases', fn:()=>viewPurchases(), roles:['boss','seller']},
+  // The storekeeper books goods in — he is the one who receives them and knows what came.
+  {id:'purchases', key:'purchases', fn:()=>viewPurchases(), roles:['boss','seller','warehouse']},
   {id:'sales', key:'sales', fn:()=>viewSales(), roles:['boss','seller','warehouse']},
   {id:'expenses', key:'expenses', fn:()=>viewExpenses(), roles:['boss','seller']},
   {id:'installers', key:'installers', fn:()=>viewInstallers(), roles:['boss','seller']},
@@ -2119,7 +2120,7 @@ function delSupplier(id){ if(!confirm(t('confirmDelete'))) return; state.supplie
 /* =================== PURCHASES =================== */
 let purchaseDraft = []; // for modal: [{productId, qty, costUsd}]
 function viewPurchases(){
-  const boss = isBoss();
+  const boss = seesCostPrice();   // boss and storekeeper both work with money here
   const supOpts = `<option value="">${t('none')}</option>` + state.suppliers.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
   const headerStats = boss
     ? `<div>${t('purchaseCount')}: <b>${state.purchases.length}</b></div>
@@ -2138,7 +2139,7 @@ function viewPurchases(){
   renderPurchaseList();
 }
 function renderPurchaseList(){
-  const boss = isBoss();
+  const boss = seesCostPrice();
   const filter = document.getElementById('purch-filter')?.value || '';
   const list = [...state.purchases].filter(p=>!filter||p.supplierId===filter).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const rows = list.map(p=>{
@@ -2187,7 +2188,7 @@ function openPurchase(id){
     const sel = editing && editing.supplierId===s.id ? ' selected' : '';
     return `<option value="${s.id}"${sel}>${escapeHtml(s.name)}</option>`;
   }).join('');
-  const totalBlock = isBoss() ? `
+  const totalBlock = seesCostPrice() ? `
     <div style="margin-top:14px;padding:10px;background:var(--panel2);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
       <b>${t('total')}</b>
       <b id="p-total" style="font-size:18px">$0.00</b>
@@ -2212,7 +2213,7 @@ function openPurchase(id){
 }
 function renderPurchaseLines(){
   const box = document.getElementById('p-items'); if(!box) return;
-  const boss = isBoss();
+  const boss = seesCostPrice();
   const prodOpts = state.products.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   box.innerHTML = purchaseDraft.map((line,idx)=>{
     const cols = boss ? '2fr 80px 100px 30px' : '2fr 80px 30px';
@@ -2261,7 +2262,7 @@ function savePurchase(id){
     const p = state.products.find(x=>x.id===l.productId);
     // Sellers can edit qty / supplier / note / date but not the cost — keep the existing per-item cost.
     let costUsd;
-    if(isBoss()) costUsd = Number(l.costUsd)||0;
+    if(seesCostPrice()) costUsd = Number(l.costUsd)||0;
     else if(editing){
       const oldLine = (editing.items||[]).find(it=>it.productId===p.id);
       costUsd = oldLine ? (Number(oldLine.costUsd)||0) : (Number(p.costUsd)||0);
@@ -5804,12 +5805,27 @@ function renderRatePreview(){
   const box = document.getElementById('rate-preview'); if(!box) return;
   const typed = Number(document.getElementById('set-rate')?.value) || state.rate;
   if(!typed || typed<=0){ box.innerHTML = ''; return;}
-  const totalRev = (state.sales||[]).reduce((s,x)=>s+(x.totalUsd||0),0);
-  const cogs = periodCOGS(state.sales, state.installs);
-  const totalExp = (state.expenses||[]).reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
-  const purchExp = (state.expenses||[]).filter(e=>e.type==='purchase').reduce((s,e)=>s+(e.amountUsd||0)+((e.amountSom||0)/typed),0);
-  const opExp = totalExp - purchExp;
-  const profit = totalRev - cogs - opExp;
+  // This tile carries the same label as the dashboard — «Чистая прибыль» — so it must be the
+  // same number. It used to count only counter sales as revenue and ignore инкасация, which
+  // in an installation-only shop showed a huge loss on a month that actually earned money.
+  // Everything below is converted at the TYPED rate, since that is the point of the preview.
+  const somToTyped = v => (Number(v)||0) / typed;
+  const installRev = (state.installs||[]).reduce((s,j)=>s + (Number(j.amountUsd)||0)
+    + somToTyped((Number(j.amountSom)||0) + (Number(j.amountTransfer)||0)
+                 + (Number(j.amountClick)||0) + (Number(j.amountTerminal)||0)), 0);
+  const totalRev = (state.sales||[]).reduce((s,x)=>s+(x.totalUsd||0),0) + installRev;
+  // Себестоимость: parts at their cost price plus the small materials typed on each car.
+  const cogs = (state.sales||[]).reduce((s,x)=>s+itemsCOGS(x.items),0)
+             + (state.installs||[]).reduce((s,j)=>s+itemsCOGS(j.items)+somToTyped(installExtraSom(j)),0);
+  const expSom = e => (Number(e.amountClick)||0) + (Number(e.amountTerminal)||0);
+  const expAt = e => (Number(e.amountUsd)||0) + somToTyped((Number(e.amountSom)||0) + expSom(e));
+  const totalExp   = (state.expenses||[]).reduce((s,e)=>s+expAt(e),0);
+  const recordP    = (state.expenses||[]).filter(isRecordPurchase).reduce((s,e)=>s+expAt(e),0);
+  const handP      = (state.expenses||[]).filter(isHandPurchase).reduce((s,e)=>s+expAt(e),0);
+  const incasso    = somToTyped(incassoFor(state.installs));
+  const opExp      = totalExp - recordP;                 // shown as расходы, same as the dashboard
+  // Same rule as everywhere: закупки are not subtracted twice, инкасация is subtracted once.
+  const profit = totalRev - cogs - incasso - (opExp - handP);
   const inv = (state.products||[]).reduce((s,p)=>s+(p.costUsd||0)*(p.stock||0),0);
   const changed = typed !== state.rate;
   const tag = changed
