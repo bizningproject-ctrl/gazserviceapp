@@ -32,6 +32,11 @@
   button.danger{background:var(--danger-bg);border-color:var(--danger-border);color:var(--neg)}
   button.danger:hover{background:var(--danger-bg-hover)}
   button.ghost{background:transparent}
+  /* Green button — a way OUT of the current screen to a related one, never an action here. */
+  button.go{background:#0e3c22;border-color:#1c6b3c;color:#a8eac0}
+  button.go:hover{background:#12522e}
+  html[data-theme="light"] button.go{background:#d4f0dd;border-color:#8fd0a8;color:#15803d}
+  html[data-theme="light"] button.go:hover{background:#c2e9cf}
   input,select,textarea{font-family:inherit;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:6px;font-size:14px;width:100%}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
   input::placeholder{color:var(--muted);opacity:.6}
@@ -445,6 +450,11 @@ const LOCALES = {
     unpaid:'Unpaid',
     paidTransfer:'Transfer', paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Yesterday', noDate:'No date', carsCount:'cars',
+    salesShort:'Sales',
+    kits:'Sets', kitsDesc:'A ready list of parts for a car — pick it and everything is filled in at once, then edit as needed.',
+    newKit:'+ New set', kitName:'Set name', kitNameHint:'Cobalt Metan',
+    kitParts:'Parts in the set', useKit:'Take a set', kitSaveAs:'Save as a set',
+    kitSaved:'Set saved', kitAsk:'Name for the set:', kitUsed:'used', noKits:'No sets yet',
     unit:'Unit', unit_pcs:'pcs', unit_m:'m', unit_kg:'kg', unit_l:'L',
     unitHint:'Hose and the like are kept in metres — then 3.5 can be written off a car.',
     productGone:'product deleted from the catalogue — kept on this car',
@@ -611,6 +621,11 @@ const LOCALES = {
     unpaid:'Не оплачено',
     paidTransfer:'Перечисление', paidClick:'Click', paidTerminal:'Терминал',
     yesterday:'Вчера', noDate:'Без даты', carsCount:'авто',
+    salesShort:'Продажи',
+    kits:'Комплекты', kitsDesc:'Готовый список деталей на машину — выбрали, и всё подставилось разом, потом можно поправить.',
+    newKit:'+ Новый комплект', kitName:'Название комплекта', kitNameHint:'Cobalt Metan',
+    kitParts:'Детали в комплекте', useKit:'Взять комплект', kitSaveAs:'Сохранить как комплект',
+    kitSaved:'Комплект сохранён', kitAsk:'Название комплекта:', kitUsed:'использован', noKits:'Комплектов пока нет',
     unit:'Единица', unit_pcs:'шт', unit_m:'м', unit_kg:'кг', unit_l:'л',
     unitHint:'Шланга и подобное держатся в метрах — тогда на машину можно списать 3,5.',
     productGone:'товар удалён из справочника — на этой машине сохранён',
@@ -777,6 +792,11 @@ const LOCALES = {
     unpaid:"To'lanmagan",
     paidTransfer:"Pul o'tkazish", paidClick:'Click', paidTerminal:'Terminal',
     yesterday:'Kecha', noDate:'Sanasiz', carsCount:'avto',
+    salesShort:'Sotuvlar',
+    kits:'Toplamlar', kitsDesc:"Mashina uchun tayyor detallar roʻyxati — tanlaysiz va hammasi birdan qoʻyiladi, keyin tahrirlash mumkin.",
+    newKit:'+ Yangi toplam', kitName:'Toplam nomi', kitNameHint:'Cobalt Metan',
+    kitParts:'Toplamdagi detallar', useKit:'Toplamni olish', kitSaveAs:'Toplam sifatida saqlash',
+    kitSaved:'Toplam saqlandi', kitAsk:'Toplam nomi:', kitUsed:'ishlatilgan', noKits:'Hali toplam yoʻq',
     unit:'Oʻlchov', unit_pcs:'dona', unit_m:'m', unit_kg:'kg', unit_l:'L',
     unitHint:'Shlang va shunga oʻxshashlar metrda yuritiladi — shunda mashinaga 3,5 yozish mumkin.',
     productGone:'mahsulot katalogdan o\'chirilgan — bu mashinada saqlanib qolgan',
@@ -912,6 +932,9 @@ const DEFAULT_STATE = {
   // What the storekeeper actually handed out, recorded by him, independently of the install.
   // The two are compared on the Сверка page; this list never moves stock by itself.
   issues: [],     // {id,date,plate,carModel,items:[{productId,name,qty}],note,by}
+  // Ready lists of parts for a kind of car — "Cobalt Metan" and the like. Picking one fills
+  // an issue or an install in a single step; the lines stay editable afterwards.
+  kits: [],       // {id,name,carModel,items:[{productId,name,qty,unit}],used}
   // Available car models for installs (Uzbekistan-popular)
   // Stored as a free string `carModel` on each install
   // edited via the dropdown defined in CAR_MODELS
@@ -1295,12 +1318,13 @@ const NAV_ALL = [
   {id:'products', key:'products', fn:()=>viewProducts(), roles:['boss','seller','warehouse']},
   {id:'suppliers', key:'suppliers', fn:()=>viewSuppliers(), roles:['boss','seller']},
   {id:'purchases', key:'purchases', fn:()=>viewPurchases(), roles:['boss','seller']},
-  {id:'sales', key:'sales', fn:()=>viewSales(), roles:['boss','seller']},
+  {id:'sales', key:'sales', fn:()=>viewSales(), roles:['boss','seller','warehouse']},
   {id:'expenses', key:'expenses', fn:()=>viewExpenses(), roles:['boss','seller']},
   {id:'installers', key:'installers', fn:()=>viewInstallers(), roles:['boss','seller']},
   {id:'installs', key:'installs', fn:()=>viewInstalls(), roles:['boss','seller']},
   {id:'debts', key:'debts', fn:()=>viewDebts(), roles:['boss','seller']},
   {id:'issues', key:'issues', fn:()=>viewIssues(), roles:['boss','warehouse']},
+  {id:'kits', key:'kits', fn:()=>viewKits(), roles:['boss','warehouse']},
   {id:'recon', key:'recon', fn:()=>viewRecon(), roles:['boss','warehouse']},
   {id:'defectives', key:'defectives', fn:()=>viewDefectives(), roles:['boss','seller','warehouse']},
   {id:'archive', key:'archive', fn:()=>viewArchive(), roles:['boss']},
@@ -3166,6 +3190,7 @@ function openInstall(id){
       <input id="j-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
              value="${editing?escapeAttr(plateOf(editing)):''}">
     </div>
+    ${kitPickerHtml('applyKitToInstall')}
     <label style="margin-top:12px">${t('items')}</label>
     <div id="j-items"></div>
     ${hasProducts?`
@@ -3311,6 +3336,25 @@ function addProductToInstall(pid){
 }
 /* Typed directly for anything measured rather than counted: 3.5 m of hose. Rounded to the
    unit, checked against what is really on the shelf, and a zero drops the line. */
+/* Same kit, used from the install form. Stock is checked per line, so a kit that asks for
+   more than the shelf holds fills what it can and says which part fell short. */
+function applyKitToInstall(kitId){
+  const k = kitById(kitId); if(!k) return;
+  const short = [];
+  (k.items||[]).forEach(it => {
+    const u = productUnit(it.productId) || itemUnit(it);
+    const line = installDraft.find(l => l.productId === it.productId);
+    const want = roundQty((line ? line.qty : 0) + it.qty, u);
+    const budget = stockBudgetFor(it.productId);
+    const take = Math.min(want, budget);
+    if(take < want) short.push(it.name);
+    if(take <= 0) return;
+    if(line) line.qty = take; else installDraft.push({productId:it.productId, qty:take, name:it.name, unit:u});
+  });
+  noteKitUsed(k);
+  renderInstallLines(); renderInstallPicker();
+  if(short.length) alert(`${t('notEnoughStock')}: ${short.join(', ')}`);
+}
 function setInstallQty(idx, v){
   const line = installDraft[idx]; if(!line) return;
   const u = productUnit(line.productId) || line.unit;
@@ -3497,6 +3541,132 @@ const reconProblemCount = range => {
   return reconRows(range).filter(r => ['diff','noIssue','noInstall'].includes(reconStatus(r, since))).length;
 };
 
+/* =================== KITS =================== */
+/* A kit is a named list of parts for a kind of car. It holds no stock and no money — taking
+   one only fills a form, so nothing is deducted until that form is saved. */
+let kitDraft = [];
+let editingKitId = null;
+function viewKits(){
+  const list = [...(state.kits||[])].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const rows = list.map(k=>`<tr>
+      <td><b>${escapeHtml(k.name||'—')}</b>${k.carModel?`<div style="color:var(--muted);font-size:12px">${escapeHtml(k.carModel)}</div>`:''}</td>
+      <td style="font-size:12px;max-width:340px">${(k.items||[]).map(x=>`${escapeHtml(x.name)} ${itemQtyText(x)}`).join(', ')||'—'}</td>
+      <td style="white-space:nowrap">${(k.items||[]).length} ${t('kinds')}</td>
+      <td style="color:var(--muted);font-size:12px">${k.used?k.used+' '+t('kitUsed'):''}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button onclick="openKit('${k.id}')">${t('edit')}</button>
+        <button class="danger" onclick="delKit('${k.id}')" style="margin-left:6px">${t('del')}</button>
+      </td>
+    </tr>`).join('');
+  V().innerHTML = `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div style="max-width:640px"><b>${t('kits')}: ${list.length}</b>
+        <div style="color:var(--muted);font-size:13px;margin-top:2px">${t('kitsDesc')}</div></div>
+      <button class="primary" onclick="openKit()">${t('newKit')}</button>
+    </div>
+    <div class="card" style="padding:0;margin-top:12px">
+    <table>
+      <thead><tr><th>${t('kitName')}</th><th>${t('kitParts')}</th><th></th><th></th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">${t('noKits')}</td></tr>`}</tbody>
+    </table></div>`;
+}
+function openKit(id){
+  const ed = id ? (state.kits||[]).find(x=>x.id===id) : null;
+  editingKitId = ed ? ed.id : null;
+  kitDraft = ed ? (ed.items||[]).map(x=>({...x, unit:itemUnit(x)})) : [];
+  const carOpts = ['<option value="">—</option>'].concat(
+    CAR_MODELS.filter(m=>m!=='Other').map(m=>`<option value="${escapeHtml(m)}"${ed&&ed.carModel===m?' selected':''}>${escapeHtml(m)}</option>`)).join('');
+  modal(`
+    <h3>${t('kits')}</h3>
+    <div class="row">
+      <div class="col"><label>${t('kitName')}</label>
+        <input id="k-name" type="text" placeholder="${t('kitNameHint')}" value="${ed?escapeAttr(ed.name||''):''}"></div>
+      <div class="col"><label>${t('carModel')}</label><select id="k-car">${carOpts}</select></div>
+    </div>
+    <label style="margin-top:12px">${t('kitParts')}</label>
+    <div id="k-items"></div>
+    <div style="margin-top:10px;padding:10px;background:var(--panel2);border-radius:8px">
+      <input id="k-search" placeholder="${t('search')}" oninput="renderKitPicker()" style="margin-bottom:8px">
+      <div id="k-picker" style="max-height:220px;overflow:auto"></div>
+    </div>
+    <div class="modal-actions">
+      <button onclick="closeModal()">${t('cancel')}</button>
+      <button class="primary" onclick="saveKit()">${t('save')}</button>
+    </div>`);
+  renderKitLines(); renderKitPicker();
+}
+function renderKitLines(){
+  const box = document.getElementById('k-items'); if(!box) return;
+  if(!kitDraft.length){
+    box.innerHTML = `<div style="color:var(--muted);padding:8px;background:var(--panel2);border-radius:6px;text-align:center;font-size:13px">${t('cartEmpty')}</div>`;
+    return;
+  }
+  box.innerHTML = kitDraft.map((line,idx)=>`<div class="install-line">
+      <div><b>${escapeHtml(line.name||'—')}</b></div>
+      <div class="qty-ctrl" style="justify-content:center">
+        <input type="number" min="0" step="${qtyStep(line.unit)}" value="${line.qty}" onchange="setKitQty(${idx},this.value)" style="width:74px;text-align:center">
+        <small style="color:var(--muted)">${unitLabel(line.unit)}</small>
+      </div>
+      <button class="danger" onclick="removeKitLine(${idx})" style="padding:4px 10px">×</button>
+    </div>`).join('');
+}
+function renderKitPicker(){
+  const box = document.getElementById('k-picker'); if(!box) return;
+  const q = (document.getElementById('k-search')?.value||'').trim().toLowerCase();
+  const list = state.products.filter(p=>!q || p.name.toLowerCase().includes(q)).slice(0,60);
+  box.innerHTML = list.map(p=>`
+    <div onclick="addKitLine('${p.id}')" style="padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:8px">
+      <span>${escapeHtml(p.name)}</span><small style="color:var(--muted)">${unitLabel(p.unit)}</small>
+    </div>`).join('') || `<div style="color:var(--muted);padding:8px">${t('noData')}</div>`;
+}
+function addKitLine(pid){
+  const p = state.products.find(x=>x.id===pid); if(!p) return;
+  const u = p.unit || 'pcs';
+  const line = kitDraft.find(l=>l.productId===pid);
+  if(line) line.qty = roundQty(line.qty + qtyStep(u), u);
+  else kitDraft.push({productId:pid, name:p.name, qty:qtyMin(u), unit:u});
+  renderKitLines();
+}
+function setKitQty(idx, v){
+  const u = kitDraft[idx].unit;
+  const q = roundQty(v, u);
+  if(q <= 0){ kitDraft.splice(idx,1); } else { kitDraft[idx].qty = q; }
+  renderKitLines();
+}
+function removeKitLine(idx){ kitDraft.splice(idx,1); renderKitLines(); }
+function saveKit(){
+  const name = (document.getElementById('k-name')?.value||'').trim();
+  if(!name){ alert(t('kitName')); return; }
+  if(!kitDraft.length){ alert(t('cartEmpty')); return; }
+  const carModel = document.getElementById('k-car')?.value || '';
+  const items = kitDraft.map(l=>({productId:l.productId, name:l.name, qty:roundQty(l.qty,l.unit), unit:l.unit||'pcs'})).filter(l=>l.qty>0);
+  state.kits = state.kits || [];
+  const ed = editingKitId ? state.kits.find(x=>x.id===editingKitId) : null;
+  if(ed) Object.assign(ed, {name, carModel, items});
+  else state.kits.push({id:uid(), name, carModel, items, used:0});
+  editingKitId = null; kitDraft = [];
+  save(); closeModal(); viewKits();
+}
+function delKit(id){
+  if(!confirm(t('confirmDelete'))) return;
+  state.kits = (state.kits||[]).filter(x=>x.id!==id);
+  save(); viewKits();
+}
+/* Dropdown shared by the issue form and the install form. Choosing a kit ADDS its parts to
+   whatever is already in the form, so two kits can be combined and every line stays editable. */
+function kitPickerHtml(fnName){
+  const kits = [...(state.kits||[])].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  if(!kits.length) return '';
+  return `<div style="margin-top:10px">
+    <label>${t('useKit')}</label>
+    <select onchange="${fnName}(this.value); this.selectedIndex=0">
+      <option value="">— ${t('useKit')} —</option>
+      ${kits.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}${k.carModel?' · '+escapeHtml(k.carModel):''} · ${(k.items||[]).length} ${t('kinds')}</option>`).join('')}
+    </select></div>`;
+}
+function kitById(id){ return (state.kits||[]).find(k=>k.id===id); }
+function noteKitUsed(k){ if(k) k.used = (Number(k.used)||0) + 1; }
+
 let issueDraft = [];      // parts being written on the current issue form
 let editingIssueId = null;
 function viewIssues(){
@@ -3531,7 +3701,11 @@ function viewIssues(){
   V().innerHTML = `
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>${t('issues')}: <b>${list.length}</b></div>
-      <button class="primary" onclick="openIssue()">${t('newIssue')}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="primary" onclick="openIssue()">${t('newIssue')}</button>
+        <button class="go" onclick="goto('sales')">${t('salesShort')}</button>
+        <button onclick="goto('kits')">${t('kits')}</button>
+      </div>
     </div>
     <div class="card" style="padding:0;margin-top:12px">
     <table>
@@ -3557,6 +3731,7 @@ function openIssue(id){
       <input id="i-plate" type="text" placeholder="${t('plateHint')}" style="text-transform:uppercase"
              value="${ed?escapeAttr(ed.plate||''):''}">
     </div>
+    ${kitPickerHtml('applyKitToIssue')}
     <label style="margin-top:12px">${t('issuedParts')}</label>
     <div id="i-items"></div>
     <div style="margin-top:10px;padding:10px;background:var(--panel2);border-radius:8px">
@@ -3565,9 +3740,12 @@ function openIssue(id){
     </div>
     <label style="margin-top:10px">${t('note')}</label>
     <input id="i-note" type="text" value="${ed?escapeAttr(ed.note||''):''}">
-    <div class="modal-actions">
-      <button onclick="closeModal()">${t('cancel')}</button>
-      <button class="primary" onclick="saveIssue()">${t('save')}</button>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button onclick="saveIssueAsKit()">${t('kitSaveAs')}</button>
+      <span style="display:flex;gap:8px">
+        <button onclick="closeModal()">${t('cancel')}</button>
+        <button class="primary" onclick="saveIssue()">${t('save')}</button>
+      </span>
     </div>`);
   renderIssueLines(); renderIssuePicker();
 }
@@ -3621,6 +3799,28 @@ function setIssueQty(idx, v){
   renderIssueLines();
 }
 function removeIssueLine(idx){ issueDraft.splice(idx,1); renderIssueLines(); }
+function applyKitToIssue(kitId){
+  const k = kitById(kitId); if(!k) return;
+  (k.items||[]).forEach(it => {
+    const line = issueDraft.find(l => l.productId === it.productId);
+    if(line) line.qty = roundQty(line.qty + it.qty, it.unit);
+    else issueDraft.push({productId:it.productId, name:it.name, qty:it.qty, unit:itemUnit(it)});
+  });
+  noteKitUsed(k);
+  renderIssueLines();
+}
+/* The easiest way to build a kit: write one car out by hand, then keep it as a template. */
+function saveIssueAsKit(){
+  if(!issueDraft.length){ alert(t('cartEmpty')); return; }
+  const suggested = (document.getElementById('i-car')?.value||'') + ' ';
+  const name = prompt(t('kitAsk'), suggested.trim());
+  if(!name) return;
+  state.kits = state.kits || [];
+  state.kits.push({id:uid(), name:name.trim(), carModel:document.getElementById('i-car')?.value||'',
+    items: issueDraft.map(l=>({productId:l.productId, name:l.name, qty:roundQty(l.qty,l.unit), unit:l.unit||'pcs'})), used:0});
+  save();
+  alert(t('kitSaved'));
+}
 function saveIssue(){
   const date = document.getElementById('i-date').value || today();
   const carModel = document.getElementById('i-car')?.value || '';
