@@ -467,7 +467,7 @@ const LOCALES = {
     reconQty:'quantity differs', reconNoProblems:'Everything matches 🎉',
     reconHint:'The system compares the parts the storekeeper issued with the parts written on the car. Cars are matched by plate number.',
     problems:'Discrepancies',
-    incasso:'Cash collection per car', incassoDesc:'Charged once for every car fitted. Counts as an expense and is shown per car in the report. Set 0 to switch it off.',
+    incasso:'Cash collection per car', incassoDesc:'Charged once for every car fitted, paid by the boss. Shown on the car line and taken off the profit, but not part of the daily expenses and not deducted from the cash handed over. Set 0 to switch it off.',
     incassoSaved:'Cash collection saved', incassoLine:'Cash collection',
     carModelOther:'Car model name', carModelOtherHint:'e.g. Gentra, Hyundai Accent…',
     carModelRequired:'Write the car model name',
@@ -633,7 +633,7 @@ const LOCALES = {
     reconQty:'разное количество', reconNoProblems:'Всё сходится 🎉',
     reconHint:'Система сравнивает детали, выданные кладовщиком, с деталями, записанными на машину. Машины сопоставляются по гос. номеру.',
     problems:'Расхождения',
-    incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину, деньги даёт босс. Входит в расходы и в прибыль, но из «Сдано боссу» не вычитается. В отчёте видна по каждой машине. 0 — не считать.',
+    incasso:'Инкасация за машину (сум)', incassoDesc:'Считается на каждую установленную машину, деньги даёт босс. Показывается на строке машины и уменьшает прибыль, но в «Дневные расходы» и в «Сдано боссу» не входит. 0 — не считать.',
     incassoSaved:'Инкасация сохранена', incassoLine:'Инкасация',
     carModelOther:'Название модели авто', carModelOtherHint:'например: Gentra, Hyundai Accent…',
     carModelRequired:'Впишите название модели авто',
@@ -4017,11 +4017,13 @@ function viewDashboard(){
   const recordPurch = state.expenses.filter(isRecordPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
   const handPurch   = state.expenses.filter(isHandPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
   // Инкасация is charged per fitted car, not typed in as an expense — add it in here.
+  // Инкасация is a per-car charge shown on the car, not one of the shop's running costs,
+  // so it is not in the expenses figure — only in the profit below.
   const incassoUsd = somToUsd(incassoFor(state.installs));
-  const opExp = totalExp - recordPurch + incassoUsd;
+  const opExp = totalExp - recordPurch;
   const cogs = periodCOGS(state.sales, state.installs);
   // Profit takes the goods once, as себестоимость — so no закупки are subtracted here.
-  const profit = totalRev - cogs - (opExp - handPurch);
+  const profit = totalRev - cogs - incassoUsd - (opExp - handPurch);
   // Install money for a window counts each debt repayment on the day it arrived, not on
   // the install's date — otherwise money repaid this week for an old car is invisible here.
   const installRevWindow = days => state.installs.reduce((s,j)=>{
@@ -4044,6 +4046,8 @@ function viewDashboard(){
                               state.installs.filter(j=>isWithinDays(j.date,7)));
   const monthCogs = periodCOGS(state.sales.filter(s=>isWithinDays(s.date,30)),
                                state.installs.filter(j=>isWithinDays(j.date,30)));
+  // Инкасация is not an expense of the week, but it is still spent on the week's cars, so it
+  // stays in what these tiles subtract for profit.
   const weekOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,7)).reduce((s,e)=>s+expenseTotalUsd(e),0)
     + somToUsd(incassoFor(state.installs.filter(j=>isWithinDays(j.date,7))));
   const monthOpExp = state.expenses.filter(e=>e.type!=='purchase' && isWithinDays(e.date,30)).reduce((s,e)=>s+expenseTotalUsd(e),0)
@@ -4303,12 +4307,14 @@ function archiveData(range){
   // records (the boss settles those himself). Profit subtracts no закупки at all, because
   // the goods are already charged as себестоимость when fitted.
   const handPurchUsd = expenses.filter(isHandPurchase).reduce((s,e)=>s+expenseTotalUsd(e),0);
-  const opExp = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+expenseTotalUsd(e),0)
-    + somToUsd(incassoFor(installs));   // per-car collection fee for this period
+  // Инкасация belongs to the car, not to the day's expenses — it is kept out of this figure
+  // and taken off the profit instead.
+  const incassoUsd = somToUsd(incassoFor(installs));
+  const opExp = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+expenseTotalUsd(e),0);
   // Real cash out per currency in this period
   const opExpUsd = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountUsd||0),0);
   const opExpSom = expenses.filter(e=>!isRecordPurchase(e)).reduce((s,e)=>s+(e.amountSom||0),0);
-  const profit = totalRev - cogs - (opExp - handPurchUsd);
+  const profit = totalRev - cogs - incassoUsd - (opExp - handPurchUsd);
   // Wages live in installation_pay expenses, not in fields on the install — installerPayUsd
   // reads only the old inline fields, so this card printed $0.00 while the table under it
   // listed tens of millions. installPayoutTotals merges both, exactly like the table does.
@@ -4839,7 +4845,7 @@ function downloadExcelReport(allTime){
   const gotCashless = gotClick + gotTerminal + gotTransfer;
   const rCap = put(pad([
     S('Наличные + Click + терминал + перевод', XLS.capGrey), S('', XLS.kpiFillGrey),
-    S('Мастера + прочее + закупки из Расходов + инкасация', XLS.capGrey),
+    S('Мастера + прочее + закупки из Расходов', XLS.capGrey),
     S('Наличные − расходы наличными · Click, терминал и перевод НЕ входят', XLS.capBlue), S('', XLS.kpiFillBlue),
     S('Себестоимость деталей', XLS.capGrey),
     S('Выручка − себестоимость − расходы (без закупок)', XLS.capAmber)]), 13);
@@ -5161,19 +5167,11 @@ function downloadExcelReport(allTime){
   const handPurchaseTotal = expLines.filter(e=>e.isPurchase).reduce((s,e)=>s+e.total, 0);
   // One summary line for the whole period, on top: the per-car amounts are already printed
   // on each car's own line in section 1, so repeating them 79 times here would be noise.
+  // Инкасация is charged to the car, on its own line in section 1, and deliberately stays
+  // out of the daily expenses: it is not a running cost of the shop, it belongs to the job.
+  // It is still taken off the profit — see vProfit — and never off "СДАНО БОССУ", because
+  // the boss pays the collection himself.
   const incassoSom = incassoFor(d.installs);
-  if(incassoSom > 0){
-    expLines.unshift({
-      date: '',
-      article: 'Инкасация',
-      category: d.installs.length + ' авто × ' + nfRu(incassoPerCar()) + ' сум · платит босс',
-      form: 'платит босс',
-      total: incassoSom,
-      // The boss pays the collection himself, so this money never leaves the till and must
-      // not come off "СДАНО БОССУ" — it still counts as a расход and against the profit.
-      cash: 0,
-    });
-  }
 
   gap();
   mergeRow(put([S((3+secShift)+'. Дневные расходы и выплаты (удерживаются из кассы)', XLS.section)]), 0, COLS-1);
@@ -5272,7 +5270,9 @@ function downloadExcelReport(allTime){
   // Профит: выручка − себестоимость деталей − расходы. Закупки, вписанные в Расходы, из
   // расходов здесь вычитаются обратно: те же товары уже посчитаны как себестоимость, когда
   // деталь встала на машину, и вычесть их дважды — загнать прибыль в минус.
-  const vProfit   = vRevenue - vCost - (vExpenses - handPurchaseTotal);
+  // Инкасация is subtracted here rather than through vExpenses, because it is charged per
+  // car and no longer appears among the daily expenses — but it is still money spent.
+  const vProfit   = vRevenue - vCost - totIncasso - (vExpenses - handPurchaseTotal);
   const kpi = rows[rKpi].c;
   kpi[0] = revRef ? Fx(revRef, XLS.kpiGreen, vRevenue) : S(vRevenue, XLS.kpiGreen);
   kpi[2] = expRef ? Fx(expRef, XLS.kpiRed, vExpenses)  : S(vExpenses, XLS.kpiRed);
